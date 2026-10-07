@@ -1,0 +1,12 @@
+{
+  "threadId": "01a11723-e6d1-7013-9798-3c0c389fc74f",
+  "homeMode": "personal",
+  "scope": "macOS foreground cancellation and simulated local deadline",
+  "cancel": {
+    "turnStatus": "interrupted",
+    "noLateWrite": false,
+    "fixtureProcessAbsent": true
+  },
+  "exactOwnedThreadArchived": true,
+  "personalConfigUnchanged": true
+}

@@ -1,0 +1,18 @@
+{
+  "scope": "only identities created in this verification",
+  "threads": [
+    {
+      "threadId": "01a11721-9d96-73c3-824d-1d5da9cf857e",
+      "archived": true,
+      "ownedTrustEntryAbsent": true
+    },
+    {
+      "threadId": "01a11723-e6d1-7013-9798-3c0c389fc74f",
+      "archived": true,
+      "ownedTrustEntryAbsent": true
+    }
+  ],
+  "activeOwnedThreadCount": 0,
+  "newManagedWorktreeCount": 0,
+  "appVisualGroupingVerified": false
+}

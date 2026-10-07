@@ -10,7 +10,7 @@ body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:900px;ba
 <section><h2>自由操作</h2><div id="actions"></div><small>可以任意顺序点击。请求停止、确认服务端退出、确认全部任务进程停止是不同事实。</small></section>
 <section><h2>场景演练</h2><div id="tabs"></div><p id="description"></p><div id="steps"></div></section>
 <script>
-const labels={reset:'重新开始',boundary:'建立外层限制',finish:'Agent 回合完成',question:'出现待答问题',answer:'原生界面回答',stop:'请求停止服务端',exit:'确认服务端退出',freeze:'发布本版成果',late:'晚到后台写入',check:'完成检查',deliver:'交付本版',resume:'显式恢复原会话',failed:'冻结中断'};
+const labels={reset:'重新开始',boundary:'建立外层限制',finish:'Agent 回合完成',question:'出现待答问题',answer:'原生界面回答',stop:'请求停止服务端',exit:'确认服务端退出',freeze:'发布本版成果',late:'晚到后台写入',check:'完成检查',deliver:'交付本版',resume:'显式恢复原会话',failed:'冻结中断',interrupt:'确认回合已中断',escape:'发现外部执行绕过'};
 const initial=()=>({phase:'工作中',boundary:false,pending:false,server:'运行中',source:'初版成果',generation:0,versions:[],checked:0,delivered:[],message:'原工作区与专用会话保留。'});
 function transition(previous,action){
   if(action==='reset')return initial();
@@ -19,7 +19,7 @@ function transition(previous,action){
   if(action==='boundary'){if(s.phase!=='工作中')return reject('外层限制应在任务执行前建立');s.boundary=true;s.message='交付目录和执行记录从任务启动起受保护。';}
   if(action==='question'){if(s.phase!=='工作中')return reject('已离开工作阶段');s.pending=true;s.message='等待原生界面回答，继续占用执行名额。';}
   if(action==='answer'){if(!s.pending||s.server!=='运行中')return reject('没有可回答的请求');s.pending=false;s.message='原生界面已回答。';}
-  if(action==='finish'){if(s.pending)return reject('仍有待答请求');s.phase='收尾中';s.message='回合完成只是候选信号，还不能开始检查。';}
+  if(action==='finish'){if(s.phase!=='工作中')return reject('当前工作回合未正常完成');if(s.pending)return reject('仍有待答请求');s.phase='收尾中';s.message='回合完成只是候选信号，还不能开始检查。';}
   if(action==='stop'){s.server='停止待确认';s.message='已请求停止；不证明已退出。';}
   if(action==='exit'){if(s.server!=='停止待确认')return reject('尚未请求停止');s.server='已退出';s.message='服务端退出已确认；后台进程是否全部停止仍需核对。';}
   if(action==='freeze'){
@@ -30,6 +30,8 @@ function transition(previous,action){
   if(action==='check'){if(s.phase!=='检查中')return reject('尚未发布本版成果');s.checked=s.generation;s.phase='待交付';s.message='本版成果的完成检查通过。';}
   if(action==='deliver'){if(s.phase!=='待交付'||s.checked!==s.generation)return reject('需要本版检查通过');s.delivered.push(s.generation);s.phase='已交付';s.message='保存本版交付证据；确认丢失时补报同一结果。';}
   if(action==='resume'){if(s.server!=='已退出'||!['已交付','待核对'].includes(s.phase))return reject('需先结束当前阶段并核对真实状态');s.server='运行中';s.phase='工作中';s.source+=' + 显式修改';s.pending=false;s.message='核对后恢复原会话和原工作区；既有交付版本不变。';}
+  if(action==='interrupt'){if(s.phase!=='工作中')return reject('没有工作回合');s.pending=false;s.phase='待核对';s.message='中断已确认，未自动回答或批准；仍需核对实际进程，不能交付。';}
+  if(action==='escape'){s.boundary=false;s.checked=0;s.phase='待核对';s.message='外部执行服务绕过限制，边界无效；保留现场，停止检查和交付。';}
   if(action==='failed'){s.phase='待核对';s.message='保留原工作区和执行记录，不发布不完整成果。';}
   return s;
 }
@@ -38,6 +40,8 @@ const scenarios=[
   {name:'后台晚到写入',description:'服务端退出后，后台进程仍可修改原工作区；本版成果保持不变。',steps:['boundary','finish','stop','exit','freeze','late','check','deliver']},
   {name:'显式恢复',description:'同一会话、同一原工作区继续工作，但第二版不能覆盖第一版。',steps:['boundary','finish','stop','exit','freeze','check','deliver','resume','finish','stop','exit','freeze','check','deliver']},
   {name:'拒绝过早检查',description:'停止请求尚未确认、待答未处理、冻结未完成，都不能启动交付。',steps:['boundary','question','finish','answer','finish','stop','freeze','exit','failed','deliver']},
+  {name:'中断待答请求',description:'问题未回答时中断回合，不能将 interrupted 当作工作成功。',steps:['boundary','question','interrupt','finish','stop','exit','deliver','resume']},
+  {name:'外部执行绕过',description:'仅限制文件写入仍可被沙箱外服务绕过，发现后必须停止交付。',steps:['boundary','finish','stop','exit','freeze','escape','check','deliver']},
   {name:'仅复制目录',description:'反例：没有外层限制时，目录副本不能单独建立交付边界。',steps:['finish','stop','exit','freeze','deliver']}
 ];
 let current=initial(),selected=0,index=0;

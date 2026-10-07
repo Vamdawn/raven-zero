@@ -13,11 +13,15 @@ python3 prototypes/delivery_isolation/probe.py control
 python3 prototypes/delivery_isolation/probe.py macos
 python3 prototypes/delivery_isolation/probe.py linux
 python3 prototypes/delivery_isolation/codex_probe.py --evidence prototypes/delivery_isolation/evidence/codex-final
+python3 prototypes/delivery_isolation/codex_probe.py --personal-home --evidence prototypes/delivery_isolation/evidence/codex-personal
+python3 prototypes/delivery_isolation/edge_probe.py
 ```
 
 macOS 探针需要本机 Python、Git 与 sandbox-exec。Linux 实验使用现有 Docker 与 `node:24.15.0-bookworm-slim`，不安装系统服务。真实 Codex 探针使用已有文件认证缓存，仅将 `auth.json` 暂存到权限 0700 的测试 Home；退出删除缓存及测试 Home，不复制个人配置或整体链接个人目录。模型为本机已验证的 `gpt-6-astra`。临时凭证不写日志、不提交。
 
 双击 `index.html` 可操作同一边界的纯状态模型，包含自由操作与五个场景；页面是说明模型，不代替真实实验。
+
+2026-10-08 起初版验证仅针对 macOS；Linux 命令和证据保留为历史探索。个人 Home 探针每轮仅创建一个准确记录身份的会话，最终通过协议归档；`thread/start` 会新增该临时目录的信任条目，退出仅清理自己新增且内容符合预期的条目，不恢复覆盖整个个人配置。归档记录仍保留在个人 Home，未核验 App 的视觉分组消失。当前页面为七个场景。
 
 ## 已保存的证据
 
@@ -27,6 +31,11 @@ macOS 探针需要本机 Python、Git 与 sandbox-exec。Linux 实验使用现�
 - 上述两个文件实验实际执行副本中的检查命令、向本地 Git bare remote 推送 v1，然后恢复并发布 v2；远端 v1 提交仍保持原身份和内容。
 - `evidence/codex-final/`：最终真实 Codex 完整探针；原生 CLI 回答 Blue、批准启动夹具一次、批准晚到写入一次（仍被外层拒绝），确认服务端退出后释放后台进程；后台九种访问被拒绝。重启服务端恢复同一 thread ID、同一原工作区，生成 v2 而 v1 不变。该 thread ID 在个人数据库中不存在。
 - `evidence/codex/`：第一次探索失败记录。嵌套 Seatbelt 让正常命令报 `sandbox_apply: Operation not permitted`，重启后请求额外审批并超时；不能作为成功验收。最终探针普通工作和恢复使用目标版本的 `externalSandbox`，审批夹具仍由原生 CLI 处理。
+- `evidence/codex-personal/`：复用本机个人配置，问答、普通命令、原生审批、晚到写入隔离及同身份恢复通过；待答问题和待批命令中断后不写文件，观察连接重连保持同身份。准确测试身份已归档，个人配置字节保持不变。
+- `evidence/codex-personal-exploration/`：首轮因个人配置被 `thread/start` 自动添加信任条目而断言失败，已归档该准确身份；定位后清掉自己新增条目，修正收尾再验证。保留失败证据。
+- `evidence/codex-personal/lifecycle*.json`：真实前台命令在 `interrupted` 事件后仍存活，释放夹具后实际写文件；回合中断不能证明取消完成。模拟本地超期时，框架对准确夹具 PID 发 SIGTERM 并确认消失后，释放不再写文件。仅验证单个夹具，未实现通用进程监督器。单独重跑使用上一命令打印的自有 RUNTIME：`python3 prototypes/delivery_isolation/lifecycle_probe.py <RUNTIME>`，只取消归档并恢复其中记录的自有会话，最后再次归档。
+- `evidence/macos-edges.json`：确定性链接替换让旧 freeze 导出外部链接；描述符相对读取及 O_NOFOLLOW 拒绝文件与目录替换。普通文件复制打断硬链接并保留执行位，版本清单识别篡改，SIGKILL 留下的 staging 不被视为已发布。这里只实现普通文件，内部链接与断电持久性仍未验证。
+- 同一边界夹具证明更高可变祖先改名能够绕过旧规则；补全受控祖先链后被拒绝。沙箱外 Unix socket 执行服务可代写保护目录；明确禁止该 socket 的规则阻断此夹具，但不等于全部 IPC/MCP/特权入口已封闭。
 
 ## 边界
 

@@ -1,0 +1,17 @@
+{
+  "platform": "darwin",
+  "scope": "controlled macOS feasibility; not production publisher",
+  "legacyFreezeAllowsLinkSwapEscape": true,
+  "descriptorCaptureRejectsFileSwap": true,
+  "descriptorCaptureRejectsDirectorySwap": true,
+  "publishedVersionVerified": true,
+  "hardlinkSeparated": true,
+  "executablePreserved": true,
+  "newVersionPreservesOld": true,
+  "tamperDetected": true,
+  "killedPublicationRejected": true,
+  "higherAncestorEscapeAllowed": true,
+  "completeFixtureAncestorChainBlocksRename": true,
+  "externalIpcExecutorBypassesFileBoundary": true,
+  "explicitIpcDenialBlocksFixture": true
+}

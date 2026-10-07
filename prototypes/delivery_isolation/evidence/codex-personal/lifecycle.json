@@ -1,0 +1,22 @@
+{
+  "threadId": "01a11723-e6d1-7013-9798-3c0c389fc74f",
+  "homeMode": "personal",
+  "scope": "macOS interruption counterexample and fixture supervisor stop after simulated deadline",
+  "cancel": {
+    "turnStatus": "interrupted",
+    "noLateWrite": false,
+    "fixtureProcessAbsent": true,
+    "processAliveAfterInterruptedEvent": true,
+    "supervisorStoppedExactFixturePid": false
+  },
+  "deadline": {
+    "turnStatus": "interrupted",
+    "noLateWrite": true,
+    "fixtureProcessAbsent": true,
+    "processAliveAfterInterruptedEvent": true,
+    "supervisorStoppedExactFixturePid": true
+  },
+  "passed": true,
+  "exactOwnedThreadArchived": true,
+  "personalConfigUnchanged": true
+}

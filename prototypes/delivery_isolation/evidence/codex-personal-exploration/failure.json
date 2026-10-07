@@ -1,0 +1,7 @@
+{
+  "passed": false,
+  "failure": "personalConfigUnchanged assertion: thread/start added an owned workspace trust entry",
+  "ownedThreadArchivedBeforeFailure": true,
+  "ownedTrustEntryRemovedAfterDiagnosis": true,
+  "threadId": "01a11721-9d96-73c3-824d-1d5da9cf857e"
+}

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """PROTOTYPE: same Codex session, native approval, outer write restriction, recovery."""
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -33,18 +35,21 @@ def completed(rpc, thread_id, after):
     return event
 
 
-def run(evidence):
+def run(evidence, personal=False):
     root = Path(tempfile.mkdtemp(prefix='rv-freeze-')).resolve()
     evidence.mkdir(parents=True, exist_ok=True)
     work, delivery, state = prepare(root)
     isolated_home = root / 'codex-home'
     isolated_home.mkdir(mode=0o700)
-    environment = dict(os.environ, CODEX_HOME=str(isolated_home))
+    personal_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
+    config_before_text = (personal_home / 'config.toml').read_text()
+    config_before = hashlib.sha256(config_before_text.encode()).hexdigest()
+    selected_home = personal_home if personal else isolated_home
+    environment = dict(os.environ, CODEX_HOME=str(selected_home))
     environment.pop('CODEX_INTERNAL_ORIGINATOR_OVERRIDE', None)
     # Only the cached credential is staged for this live probe, never logged or committed.
-    personal_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
     staged_auth = isolated_home / 'auth.json'
-    if (personal_home / 'auth.json').exists():
+    if not personal and (personal_home / 'auth.json').exists():
         shutil.copyfile(personal_home / 'auth.json', staged_auth)
         staged_auth.chmod(0o600)
     (isolated_home / 'config.toml').write_text('model = "gpt-6-astra"\ncheck_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n[features]\napps = false\nmulti_agent = false\n')
@@ -73,7 +78,7 @@ def run(evidence):
         rpc = native_probe.Rpc(socket_path, f'owner{len(servers)}', root)
         clients.append(rpc)
         initialized = next(m['result'] for m in rpc.messages if m.get('id') == f'{rpc.name}-1')
-        assert Path(initialized['codexHome']).resolve() == isolated_home
+        assert Path(initialized['codexHome']).resolve() == selected_home
         result['codexHomeVerified'] = True
         return server, rpc
 
@@ -84,6 +89,28 @@ def run(evidence):
             'developerInstructions': 'Controlled scratch prototype. No web, apps, MCP, or subagents. Execute only the requested fixture commands. Never inspect authentication files.'})
         thread_id = started['thread']['id']
         result['threadId'] = thread_id
+        result['homeMode'] = 'personal' if personal else 'scratch'
+        result['configChangedAfterThreadStart'] = (personal_home / 'config.toml').read_text() != config_before_text
+        (root / 'owned-thread.json').write_text(json.dumps({'threadId': thread_id, 'cwd': str(work)}))
+        if personal:
+            # Interrupt unresolved interactions without answering or approving them.
+            for kind, prompt, options in (
+                ('Question', 'Call request_user_input once: header Probe, id color, question "Which interrupt color?", options Blue and Green. After the answer run `printf answered > interrupted-question.txt`. Wait for the answer.', {'collaborationMode': {'mode': 'plan', 'settings': {'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'developer_instructions': None}}}),
+                ('Approval', 'Run exactly `printf approved > interrupted-approval.txt` using exec_command with require_escalated and justification controlled cancellation fixture. Wait for approval.', {'sandboxPolicy': {'type': 'readOnly'}, 'collaborationMode': {'mode': 'default', 'settings': {'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'developer_instructions': None}}}),
+            ):
+                after, turn_id = turn(rpc, thread_id, prompt, **options)
+                method = 'item/tool/requestUserInput' if kind == 'Question' else 'item/commandExecution/requestApproval'
+                native_probe.wait_until(lambda: rpc.event(method, thread_id, after), 'pending ' + kind)
+                rpc.call('turn/interrupt', {'threadId': thread_id, 'turnId': turn_id})
+                event = native_probe.wait_until(lambda: rpc.event('turn/completed', thread_id, after), 'interrupted ' + kind, 20)
+                result['pending' + kind + 'InterruptStatus'] = event['params']['turn']['status']
+                assert result['pending' + kind + 'InterruptStatus'] == 'interrupted'
+            result['interruptedRequestsDidNotWrite'] = not (work / 'interrupted-question.txt').exists() and not (work / 'interrupted-approval.txt').exists()
+            assert result['interruptedRequestsDidNotWrite']
+            reconnected = native_probe.Rpc(socket_path, 'reconnected', root)
+            clients.append(reconnected)
+            assert reconnected.call('thread/resume', {'threadId': thread_id})['thread']['id'] == thread_id
+            result['ownerReconnectSameThread'] = True
         after, _ = turn(rpc, thread_id, 'Call request_user_input exactly once. Header Probe, id color, question "Which fixture color?", options Blue and Green. Wait for the answer, then say the chosen color and finish. Do not write files.',
             collaborationMode={'mode': 'plan', 'settings': {'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'developer_instructions': None}})
         native_probe.wait_until(lambda: rpc.event('item/tool/requestUserInput', thread_id, after), 'pending question')
@@ -149,6 +176,13 @@ def run(evidence):
     finally:
         if native:
             native.close()
+        if personal and result.get('threadId'):
+            # Archive only the exact identity created above, before stopping its endpoint.
+            live = next(client for client in reversed(clients) if client.name.startswith('owner'))
+            if not servers or servers[-1].poll() is not None:
+                _, live = start_server()
+            live.call('thread/archive', {'threadId': result['threadId']})
+            result['createdThreadArchivedViaProtocol'] = True
         for rpc in clients:
             rpc.close()
         for server in servers:
@@ -163,11 +197,24 @@ def run(evidence):
             database = personal_home / 'state_5.sqlite'
             if database.exists():
                 with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as connection:
-                    result['createdThreadAbsentFromPersonalDatabase'] = connection.execute('SELECT COUNT(*) FROM threads WHERE id = ?', (result['threadId'],)).fetchone()[0] == 0
+                    row = connection.execute('SELECT cwd, archived FROM threads WHERE id = ?', (result['threadId'],)).fetchone()
+                    result['createdThreadAbsentFromPersonalDatabase'] = row is None
+                    if personal:
+                        result['createdThreadNoActivePersonalRecord'] = row is None or (Path(row[0]).resolve() == work and row[1] == 1)
         staged_auth.unlink(missing_ok=True)
         result['stagedCredentialRemoved'] = not staged_auth.exists()
+        if personal:
+            config_path = personal_home / 'config.toml'
+            current_config = config_path.read_text()
+            pattern = r'(?m)^\[projects\."' + re.escape(str(work)) + r'"\]\n[^\[]*'
+            match = re.search(pattern, current_config)
+            if match and str(work) not in config_before_text:
+                assert match.group().strip() == f'[projects."{work}"]\ntrust_level = "trusted"'
+                config_path.write_text(current_config[:match.start()] + current_config[match.end():])
+                result['ownedScratchTrustEntryRemoved'] = True
+        result['personalConfigUnchanged'] = hashlib.sha256((personal_home / 'config.toml').read_bytes()).hexdigest() == config_before
         # Export only protocol evidence, excluding account/rate-limit/token metadata.
-        for path in root.glob('owner*.jsonl'):
+        for path in [*root.glob('owner*.jsonl'), *root.glob('reconnected.jsonl')]:
             rows = [line for line in path.read_text().splitlines()
                     if not json.loads(line)['message'].get('method', '').startswith(('account/', 'thread/tokenUsage/'))]
             (evidence / path.name).write_text(('\n'.join(rows) + '\n').replace(str(root), '<PROTOTYPE>').replace(str(Path.home()), '<HOME>'))
@@ -177,10 +224,12 @@ def run(evidence):
         shutil.rmtree(isolated_home)
         print('EVIDENCE', evidence, 'RUNTIME', root, flush=True)
         print(json.dumps(result, indent=2), flush=True)
-    assert result.get('passed') and result.get('createdThreadAbsentFromPersonalDatabase')
+    assert result.get('passed') and result.get('createdThreadNoActivePersonalRecord' if personal else 'createdThreadAbsentFromPersonalDatabase')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', type=Path, default=Path(__file__).parent / 'evidence' / 'codex')
-    run(parser.parse_args().evidence)
+    parser.add_argument('--personal-home', action='store_true', help='Reuse personal config; archive the exact created thread in finally.')
+    args = parser.parse_args()
+    run(args.evidence, args.personal_home)
