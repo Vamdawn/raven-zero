@@ -1,0 +1,51 @@
+{
+  "case": "macos",
+  "platform": "darwin",
+  "writerReadyBeforeFreeze": true,
+  "launcherExitedBeforeFreeze": true,
+  "v1Manifest": {
+    "ready": {
+      "sha256": "35765618f6bca0fc532c6b2b204dd19a4d61bd6bac22efa82589cb024891f57a",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    }
+  },
+  "hardlinkBroken": true,
+  "attempts": {
+    "ancestorRename": "EPERM",
+    "hardlinkAlias": "EPERM",
+    "absolute": "EPERM",
+    "relative": "EPERM",
+    "symlink": "EPERM",
+    "rename": "EPERM",
+    "chmod": "EPERM",
+    "unlink": "EPERM",
+    "metadata": "EPERM"
+  },
+  "heldSourceFdChangedSource": true,
+  "v1Unchanged": true,
+  "metadataUnchanged": true,
+  "checkOutput": "checked",
+  "deliveredCommit": "a8bfe73d59a6499fc32b48bd3ee290bf4effcea8",
+  "remoteContainsFrozenReport": true,
+  "recoveryPreservesV1": true,
+  "recoveryPublishesV2": true,
+  "recoveryPreservesDeliveredCommit": true,
+  "escapingOutputLinkRejected": true,
+  "passed": true,
+  "writerExited": true
+}

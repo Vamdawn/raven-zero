@@ -1,0 +1,56 @@
+{
+  "version": "codex-cli 0.155.1",
+  "platform": "darwin",
+  "scope": "macOS live Codex, not Linux Codex",
+  "codexHomeVerified": true,
+  "threadId": "01a116c8-edb4-7d42-bea7-2659ea4df34e",
+  "nativeQuestionAnswered": true,
+  "nativeApprovedOnce": true,
+  "v1Manifest": {
+    "launch.py": {
+      "sha256": "a35b7a48909d0c13c95727c83542996a857f109f630f0d0fddc473d16440bb0f",
+      "executable": false
+    },
+    "ready": {
+      "sha256": "c8061d498d9cba59548e9882259316834dcfd7a8321094a0e598c7994fc8c202",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    },
+    "worker.py": {
+      "sha256": "baf294a6d5f31bd9fbe9ad17b1d866277d49a3379d75368611b5d77c2e0f11b3",
+      "executable": false
+    }
+  },
+  "lateNativeTurnCannotChangeV1": true,
+  "serverRequiredSigkill": true,
+  "serverExitedBeforeBackgroundRelease": true,
+  "backgroundAttempts": {
+    "absolute": "EPERM",
+    "relative": "EPERM",
+    "symlink": "EPERM",
+    "rename": "EPERM",
+    "chmod": "EPERM",
+    "unlink": "EPERM",
+    "metadata": "EPERM"
+  },
+  "heldSourceFdChangedSource": true,
+  "backgroundCannotChangeV1": true,
+  "metadataUnchanged": true,
+  "sameThreadAfterServerRestart": true,
+  "createdThreadAbsentFromPersonalDatabase": true,
+  "stagedCredentialRemoved": true
+}

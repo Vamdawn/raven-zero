@@ -1,0 +1,51 @@
+{
+  "case": "linux",
+  "platform": "darwin",
+  "executionPlatform": "Linux container; controller on macOS",
+  "writerReadyBeforeFreeze": true,
+  "launcherExitedBeforeFreeze": false,
+  "v1Manifest": {
+    "ready": {
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    }
+  },
+  "hardlinkBroken": true,
+  "attempts": {
+    "ancestorRename": "EROFS",
+    "hardlinkAlias": "EXDEV",
+    "absolute": "EROFS",
+    "relative": "EROFS",
+    "symlink": "EROFS",
+    "rename": "EXDEV",
+    "chmod": "EROFS",
+    "unlink": "EROFS",
+    "metadata": "EROFS"
+  },
+  "heldSourceFdChangedSource": true,
+  "v1Unchanged": true,
+  "metadataUnchanged": true,
+  "checkOutput": "checked",
+  "deliveredCommit": "7e48390f4b7828b58e6d9ed8017286a3f57fa9c8",
+  "remoteContainsFrozenReport": true,
+  "recoveryPreservesV1": true,
+  "recoveryPublishesV2": true,
+  "recoveryPreservesDeliveredCommit": true,
+  "escapingOutputLinkRejected": true,
+  "passed": true
+}

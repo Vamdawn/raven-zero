@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raven Zero · 交付边界原型</title>
+<style>
+body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:900px;background:#f5f6f8;color:#202b38}h1{font-size:28px}section{background:white;border:1px solid #dddfe4;border-radius:12px;padding:22px;margin:20px 0}button{font:inherit;border:1px solid #b9c4d2;background:white;border-radius:6px;padding:8px 14px;margin:5px;cursor:pointer}button:hover,.selected{background:#e0edff}dl{display:grid;grid-template-columns:180px 1fr;gap:8px}dt{color:#657080}dd{margin:0}small{color:#657080}#message{border-left:3px solid #3978cb;padding-left:12px}
+</style>
+<h1>检查、交付只使用本版成果</h1>
+<p>一次性状态原型：独立交付工作区加外层写入限制，能否让晚到输入与后台写入只影响原工作区？显式恢复是否保留旧版成果？下方为可操作的模型；真实文件与 Codex 实验见同目录 evidence。</p>
+<section><h2>当前状态</h2><dl id="state"></dl><p id="message"></p></section>
+<section><h2>自由操作</h2><div id="actions"></div><small>可以任意顺序点击。请求停止、确认服务端退出、确认全部任务进程停止是不同事实。</small></section>
+<section><h2>场景演练</h2><div id="tabs"></div><p id="description"></p><div id="steps"></div></section>
+<script>
+const labels={reset:'重新开始',boundary:'建立外层限制',finish:'Agent 回合完成',question:'出现待答问题',answer:'原生界面回答',stop:'请求停止服务端',exit:'确认服务端退出',freeze:'发布本版成果',late:'晚到后台写入',check:'完成检查',deliver:'交付本版',resume:'显式恢复原会话',failed:'冻结中断'};
+const initial=()=>({phase:'工作中',boundary:false,pending:false,server:'运行中',source:'初版成果',generation:0,versions:[],checked:0,delivered:[],message:'原工作区与专用会话保留。'});
+function transition(previous,action){
+  if(action==='reset')return initial();
+  const s={...previous,versions:[...previous.versions],delivered:[...previous.delivered]};
+  const reject=text=>({...s,message:'拒绝：'+text});
+  if(action==='boundary'){if(s.phase!=='工作中')return reject('外层限制应在任务执行前建立');s.boundary=true;s.message='交付目录和执行记录从任务启动起受保护。';}
+  if(action==='question'){if(s.phase!=='工作中')return reject('已离开工作阶段');s.pending=true;s.message='等待原生界面回答，继续占用执行名额。';}
+  if(action==='answer'){if(!s.pending||s.server!=='运行中')return reject('没有可回答的请求');s.pending=false;s.message='原生界面已回答。';}
+  if(action==='finish'){if(s.pending)return reject('仍有待答请求');s.phase='收尾中';s.message='回合完成只是候选信号，还不能开始检查。';}
+  if(action==='stop'){s.server='停止待确认';s.message='已请求停止；不证明已退出。';}
+  if(action==='exit'){if(s.server!=='停止待确认')return reject('尚未请求停止');s.server='已退出';s.message='服务端退出已确认；后台进程是否全部停止仍需核对。';}
+  if(action==='freeze'){
+    if(!s.boundary||s.server!=='已退出'||s.pending||s.phase!=='收尾中')return reject('需要有效隔离、完成收尾且无待答请求');
+    s.generation++;s.versions.push(s.source);s.phase='检查中';s.checked=0;s.message='本版成果已保存；检查只针对交付工作区。';
+  }
+  if(action==='late'){s.source+=' + 晚到修改';if(!s.boundary&&s.generation)s.versions[s.generation-1]=s.source;s.message=s.boundary?'原工作区变化；受保护的本版成果保持不变。':'缺少外层限制，独立目录也不能保证成果不变。';}
+  if(action==='check'){if(s.phase!=='检查中')return reject('尚未发布本版成果');s.checked=s.generation;s.phase='待交付';s.message='本版成果的完成检查通过。';}
+  if(action==='deliver'){if(s.phase!=='待交付'||s.checked!==s.generation)return reject('需要本版检查通过');s.delivered.push(s.generation);s.phase='已交付';s.message='保存本版交付证据；确认丢失时补报同一结果。';}
+  if(action==='resume'){if(s.server!=='已退出'||!['已交付','待核对'].includes(s.phase))return reject('需先结束当前阶段并核对真实状态');s.server='运行中';s.phase='工作中';s.source+=' + 显式修改';s.pending=false;s.message='核对后恢复原会话和原工作区；既有交付版本不变。';}
+  if(action==='failed'){s.phase='待核对';s.message='保留原工作区和执行记录，不发布不完整成果。';}
+  return s;
+}
+const scenarios=[
+  {name:'正常交付',description:'结束原生工作阶段后，发布成果，再检查和交付。',steps:['boundary','finish','stop','exit','freeze','check','deliver']},
+  {name:'后台晚到写入',description:'服务端退出后，后台进程仍可修改原工作区；本版成果保持不变。',steps:['boundary','finish','stop','exit','freeze','late','check','deliver']},
+  {name:'显式恢复',description:'同一会话、同一原工作区继续工作，但第二版不能覆盖第一版。',steps:['boundary','finish','stop','exit','freeze','check','deliver','resume','finish','stop','exit','freeze','check','deliver']},
+  {name:'拒绝过早检查',description:'停止请求尚未确认、待答未处理、冻结未完成，都不能启动交付。',steps:['boundary','question','finish','answer','finish','stop','freeze','exit','failed','deliver']},
+  {name:'仅复制目录',description:'反例：没有外层限制时，目录副本不能单独建立交付边界。',steps:['finish','stop','exit','freeze','deliver']}
+];
+let current=initial(),selected=0,index=0;
+function act(action){current=transition(current,action);render();}
+function choose(i){selected=i;index=0;current=initial();render();}
+function render(){
+  const fields={'执行阶段':current.phase,'外层写入限制':current.boundary?'已建立':'未建立','待答请求':current.pending?'等待原生回答':'无','专用服务端':current.server,'原工作区内容':current.source,'成果版本':current.versions.map((v,i)=>'v'+(i+1)+'：'+v).join('；')||'尚未发布','检查通过版本':current.checked||'无','已交付版本':current.delivered.join('、')||'无'};
+  document.querySelector('#state').replaceChildren(...Object.entries(fields).flatMap(([name,value])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=name;dd.textContent=value;return[dt,dd];}));
+  document.querySelector('#message').textContent=current.message;
+  document.querySelector('#tabs').replaceChildren(...scenarios.map((scenario,i)=>{const b=document.createElement('button');b.textContent=scenario.name;b.className=i===selected?'selected':'';b.onclick=()=>choose(i);return b;}));
+  document.querySelector('#description').textContent=scenarios[selected].description;
+  document.querySelector('#steps').replaceChildren(...scenarios[selected].steps.map((action,i)=>{const b=document.createElement('button');b.textContent=(i+1)+'. '+labels[action];b.disabled=i!==index;b.onclick=()=>{index++;act(action);};return b;}));
+}
+document.querySelector('#actions').replaceChildren(...Object.entries(labels).map(([action,label])=>{const b=document.createElement('button');b.textContent=label;b.onclick=()=>act(action);return b;}));
+render();
+</script></html>

@@ -1,0 +1,45 @@
+{
+  "case": "control",
+  "platform": "darwin",
+  "writerReadyBeforeFreeze": true,
+  "launcherExitedBeforeFreeze": true,
+  "v1Manifest": {
+    "ready": {
+      "sha256": "40d89527a0e960bcf1fc2c50045cbc3317b8b9ad5fa00eb78ef2139a778a8c7f",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    }
+  },
+  "hardlinkBroken": true,
+  "attempts": {
+    "ancestorRename": "allowed",
+    "hardlinkAlias": "allowed",
+    "absolute": "allowed",
+    "relative": "allowed",
+    "symlink": "allowed",
+    "rename": "allowed",
+    "chmod": "allowed",
+    "unlink": "allowed",
+    "metadata": "allowed"
+  },
+  "heldSourceFdChangedSource": true,
+  "v1Unchanged": false,
+  "metadataUnchanged": false,
+  "expectedCounterexample": true,
+  "passed": true,
+  "writerExited": true
+}

@@ -159,12 +159,14 @@ class Rpc:
 
 
 class NativeTui:
-    def __init__(self, socket, thread_id, workspace, output):
+    def __init__(self, socket, thread_id, workspace, output, environment=None):
         self.output = output
         self.raw = bytearray()
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             os.chdir(workspace)
+            if environment is not None:
+                os.environ.update(environment)
             os.environ['TERM'] = 'xterm-256color'
             os.execvp('codex', ['codex', 'resume', thread_id, '--remote',
                                f'unix://{socket}', '--no-alt-screen',

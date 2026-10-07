@@ -1,0 +1,68 @@
+{
+  "version": "codex-cli 0.155.1",
+  "platform": "darwin",
+  "scope": "macOS live Codex, not Linux Codex",
+  "codexHomeVerified": true,
+  "threadId": "01a116ce-f05b-7103-b84b-01ff19ec578a",
+  "nativeQuestionAnswered": true,
+  "ordinaryCommandWithUiAttached": true,
+  "nativeApprovedOnce": true,
+  "v1Manifest": {
+    "launch.py": {
+      "sha256": "1f5ec886abcc677abff5d9b7c0d4dbd493258421935605f7acb6b0303239438a",
+      "executable": false
+    },
+    "normal.txt": {
+      "sha256": "317b32c143692b9939c197f6a5df54f9698df9a4882fe8bf19608968662be4fa",
+      "executable": false
+    },
+    "ready": {
+      "sha256": "d4265b9e44d96721d4a58ee4551413bd7ca701d480cc44d4f08ecb8282070bcf",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    },
+    "worker.py": {
+      "sha256": "0dfaee691a2f2d9504c3d95f30f45de052f4ed67ef147b6edfd49498f5aeb7c6",
+      "executable": false
+    }
+  },
+  "lateNativeWriteApprovedOnce": true,
+  "lateNativeTurnCannotChangeV1": true,
+  "serverRequiredSigkill": true,
+  "serverExitedBeforeBackgroundRelease": true,
+  "backgroundAttempts": {
+    "ancestorRename": "EPERM",
+    "hardlinkAlias": "EPERM",
+    "absolute": "EPERM",
+    "relative": "EPERM",
+    "symlink": "EPERM",
+    "rename": "EPERM",
+    "chmod": "EPERM",
+    "unlink": "EPERM",
+    "metadata": "EPERM"
+  },
+  "heldSourceFdChangedSource": true,
+  "backgroundCannotChangeV1": true,
+  "metadataUnchanged": true,
+  "sameThreadAfterServerRestart": true,
+  "sameWorkspaceAfterRestart": true,
+  "recoveryPreservesV1": true,
+  "v2Content": "explicit-resume-v2",
+  "passed": true,
+  "createdThreadAbsentFromPersonalDatabase": true,
+  "stagedCredentialRemoved": true
+}
