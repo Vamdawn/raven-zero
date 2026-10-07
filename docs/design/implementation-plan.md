@@ -1,6 +1,6 @@
 # 首版实施任务图
 
-2026-10-07 完成独立交付工作区的边界决策与最小真实原型，再按可运行的行为切片拆分实现。主任务为 [Issue #2](https://github.com/Vamdawn/raven-zero/issues/2)；本轮只记录设计、原型与任务，尚未开始生产代码实现。
+2026-10-07 完成独立交付工作区的边界决策与最小真实原型，再按可运行的行为切片拆分实现。主任务为 [Issue #2](https://github.com/Vamdawn/raven-zero/issues/2)；2026-10-08 已开始实现 #1 的内部隔离模块；其余业务切片按下表推进。
 
 依据：[首版规格](v1-spec.md)、[技术栈](technology-stack.md)、[ADR 0020](../adr/0020-protected-delivery-workspace.md)和[交付隔离契约](delivery-workspace-isolation.md)。原型固定来源为 [`edbd170`](https://github.com/Vamdawn/raven-zero/tree/edbd170208dc19f306bcf8bbbcf0d461596a9021/prototypes/delivery_isolation)，不合并 Python/HTML 到生产代码。
 
@@ -8,7 +8,7 @@
 
 | 任务 | 可验收的切片 | 阻塞依赖 |
 | --- | --- | --- |
-| [#1](https://github.com/Vamdawn/raven-zero/issues/1) | 正式外层写入边界、生产成果发布、macOS Codex 与停止确认验收 | 无；剩余验收仍开放 |
+| [#1](https://github.com/Vamdawn/raven-zero/issues/1) | 正式外层写入边界、生产成果发布、macOS Codex 与停止确认验收 | 无；内部模块及 macOS 验收见隔离记录 |
 | [#3](https://github.com/Vamdawn/raven-zero/issues/3) | 核心契约和模拟 Agent：本地报告任务从初始化到本版检查与结果 | 无 |
 | [#4](https://github.com/Vamdawn/raven-zero/issues/4) | 本地代码任务：Git 分支交付与提交身份恢复 | #3 |
 | [#5](https://github.com/Vamdawn/raven-zero/issues/5) | MySQL 服务端：认证、任务领取、归属与幂等上报 | #3 |
@@ -30,6 +30,6 @@ flowchart LR
   A --> R
 ```
 
-执行优先级先补齐 **#1 中可能改变设计的 macOS 可行性验证**：个人 Home 权限组合、收尾与恢复，以及成果发布的关键反例。确认或修正规格后，再以 **#3** 的模拟 Agent 加真实文件完成本地报告任务；#3 本身没有技术阻塞依赖。生产实现级验收随实现完成，在 #1 关闭前不能把模拟隔离能力当成真实 Agent 的写入保证。
+执行顺序为：完成 **#1** 的 macOS 内部隔离模块和真实验收，再以 **#3** 的模拟 Agent 加真实文件完成本地报告任务。#3 本身没有技术阻塞依赖；后续 #8 使用已验收的隔离接口验证完整客户端，不能将模拟 Agent 当作真实 Agent 写入保证。
 
 每个 Issue 写明行为、完成条件及阻塞关系；GitHub 原生子任务与依赖关系用于追踪，本文保留可读任务图。实现逐切片运行相关检查，真实 MySQL、SQLite、Git 和 Codex 不互相代替验收。初版复用个人 `CODEX_HOME`，迁移专用 Home 不加入首版实现图；自动测试仍使用隔离状态根。
