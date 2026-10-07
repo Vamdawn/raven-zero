@@ -14,3 +14,9 @@
 ### Domain docs
 
 采用 single-context 布局。探索代码前阅读 `docs/agents/domain.md`。
+
+## Coding rules
+
+TypeScript：编写或审查 TypeScript 源码、测试或编译与格式化配置前，阅读 `docs/agents/typescript.md`。
+
+MySQL：设计或修改表、索引、迁移、查询或 Kysely/mysql2 值映射，以及审查这些改动前，阅读 `docs/agents/mysql.md`。
