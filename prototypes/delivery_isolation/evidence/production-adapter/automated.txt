@@ -1,0 +1,24 @@
+$ pnpm build && node --test --test-timeout=60000 packages/codex-adapter/dist/test/*.test.js
+$ pnpm --filter @raven-zero/codex-adapter build:native && tsc -b
+$ node scripts/build_native.mjs
+✔ model relay forwards only the fixed CONNECT authority; HTTP/local/IP/spoofed targets are rejected (37.596209ms)
+✔ kernel scope includes unregistered orphan, rejects stale PID generation, and survives manager restart (1271.282292ms)
+✔ scope stop leaves independent live job untouched and unknown scope pending (547.154125ms)
+✔ an unprivileged job cannot spawn into another kernel resource scope (593.047084ms)
+✔ controller SIGKILL after empty proof and bootout recovers without reusing vanished kernel counters (246.806667ms)
+✔ native gate keeps exact identity/config, closes connected CLI and blocks reconnection; RPC requests no compression (21.680959ms)
+✔ launchd reserves model port through controller and relay SIGKILL, until recovery releases the scope (1012.587208ms)
+✔ restart cleanup preserves model listener when Agent scope is uncertain, then closes in safe order (776.165416ms)
+✔ publishes independent files, internal links, executable bits and distinct versions; resumes saved bytes (806.709ms)
+✔ unsafe links, source root symlink and reserved marker never become a publication (72.989292ms)
+✔ SIGKILL of publisher and native copier leaves partial unaccepted; retry and lost acknowledgement recover the same version (1640.293625ms)
+✔ protected paths and shared Home executable data stay unwritable under native escalation (872.775916ms)
+✔ the model TCP4 exception rejects IPv6, other loopback addresses and UDP at the same port (280.534625ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2810.426

@@ -1,0 +1,19 @@
+{
+  "thread": "01a11731-3810-7c33-b4cd-da9f690f6802",
+  "platform": "macOS 26.6.1 arm64",
+  "codex": "0.155.1",
+  "noNewThread": true,
+  "noNewManagedWorktree": true,
+  "privateSQLiteWithPersonalHome": true,
+  "modelPortOwnedByLaunchd": true,
+  "pendingQuestionDoesNotPublish": true,
+  "nativeQuestionAnswered": true,
+  "error": "[Errno 2] No such file or directory: '/private/var/folders/g9/ms8ny2mx7pjd9rc0657154140000gq/T/rv-freeze-413bepgg/work/raven-native-command'",
+  "ownedThreadArchived": true,
+  "stopCleanup": {
+    "status": "confirmed",
+    "escalated": false
+  },
+  "exactPersonalRecordStillArchived": true,
+  "personalConfigUnchanged": true
+}

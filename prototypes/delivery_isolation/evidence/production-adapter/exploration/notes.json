@@ -1,0 +1,32 @@
+{
+  "failedAttempts": [
+    {
+      "run": "rv1-71u6fpwg",
+      "failure": "Native TUI received pasted prompt but Enter was part of rapid paste; no turn submitted.",
+      "resolution": "Separate typing from Enter by one second; require observed turn/started."
+    },
+    {
+      "run": "rv1-m56jq7j0",
+      "failure": "Native turn completed without executing command: gateway forced environments=[] and disabled local tools.",
+      "resolution": "Keep inherited local environment. Reject non-empty alternate environment requests without supplying an empty list."
+    }
+  ],
+  "otherDiagnostics": [
+    {
+      "failure": "Numeric host in Seatbelt remote ip rule rejected during compile.",
+      "resolution": "Use supported remote tcp4 localhost:<port>; test IPv6/UDP/other loopback refusals."
+    },
+    {
+      "failure": "Recovered scope used /var alias while stop proof used canonical /private/var.",
+      "resolution": "Canonicalize recovery directory; repeat-stop regression verifies same admission and proof."
+    },
+    {
+      "failure": "ws default permessage-deflate handshake causes socket hangup with Codex 0.155.1.",
+      "resolution": "Disable compression explicitly; Host header alone did not fix."
+    },
+    {
+      "failure": "Personal executable aliases and shell snapshots are shared executable data, unsafe blanket Home grants.",
+      "resolution": "Narrow exact rollout and coordination files, lock hooks/plugins/shell snapshots off; private Codex sqlite_home."
+    }
+  ]
+}

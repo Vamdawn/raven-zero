@@ -199,9 +199,13 @@ class NativeTui:
 
     def close(self):
         try:
-            os.killpg(self.pid, signal.SIGTERM)
-            os.waitpid(self.pid, 0)
-        except ProcessLookupError:
+            # An exited CLI may no longer own its former process group. Our
+            # unreaped child PID remains ours; never signal another group.
+            exited, _ = os.waitpid(self.pid, os.WNOHANG)
+            if not exited:
+                os.kill(self.pid, signal.SIGTERM)
+                os.waitpid(self.pid, 0)
+        except (ProcessLookupError, ChildProcessError):
             pass
         self.reader.join(timeout=2)
         os.close(self.fd)

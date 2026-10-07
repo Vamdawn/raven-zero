@@ -1,0 +1,16 @@
+{
+  "finish": {
+    "status": "pending_verification",
+    "reason": "Scope does not match durable admission record"
+  },
+  "uncertainScopeDoesNotPublish": true,
+  "modelListenerRetained": true,
+  "workspacePreserved": true,
+  "repairAndCancelConfirmed": {
+    "status": "confirmed",
+    "escalated": false
+  },
+  "priorVersionsPreserved": true,
+  "passed": true,
+  "personalConfigUnchanged": true
+}

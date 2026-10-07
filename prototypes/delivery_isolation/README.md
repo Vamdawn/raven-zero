@@ -67,3 +67,30 @@ python3 prototypes/delivery_isolation/codex_probe.py --personal-home --strict-bo
 - `evidence/publication.json`：内部文件、目录与链式链接保留；拒绝绝对、逃逸、悬空、循环以及目录别名加 `..` 的逃逸链接。独立文件 inode、Git pointer 排除及旧版本保留通过。实际在文件复制、树复制、清单写入、目录发布和记录保存五处 SIGKILL；发布前三处排除 staging，发布后按已捕获且核验的同一版本恢复。清单篡改进入待核对。
 
 文件发布夹具只验证进程崩溃，尚未完成目录 fsync 与断电持久性，也未把这些机制整合为生产发布器。允许的 Mach 系统服务、第三方 MCP/插件、个人 Home 中的全部权限组合及任意进程覆盖继续留在 #1 正式验收；初版 Linux 仍排除。本轮只验证固定模型目标网络，Git 或用户自定义网络目标需要正式受控出口策略，不静默放宽为任意 localhost 服务。
+
+
+## 内部隔离模块验收（2026-10-08）
+
+本轮将已验证机制实现为主线 `packages/codex-adapter`，本分支只保存一次性桥接、探针和 primary source。完整调度客户端仍由 #3–#8 实现。实际实现版本和证据固定提交由 #1 关联。
+
+```sh
+# 在主线实现 checkout 安装并构建，按模块 README 的版本与 GUI 条件运行。
+pnpm install --frozen-lockfile
+pnpm test
+# 然后在本原型分支运行；修改文件顶部 ADAPTER 到主线编译入口。
+python3 prototypes/delivery_isolation/adapter_acceptance.py
+# 使用上一步打印的准确自有 RUNTIME，验证未知停止范围时不发布。
+python3 prototypes/delivery_isolation/adapter_unknown_stop.py <RUNTIME>
+```
+
+探针顶部 WORK/THREAD 是本轮已创建且准确归档的专用身份，不自动选择个人会话。换机器需提供自己预先创建且拥有的身份和工作区；未创建新 managed worktree，也未新增会话身份。不将临时 private SQLite 或认证数据提交到分支。
+
+`adapter_bridge.mjs` 调用真实 TypeScript 包，探针自身不实现发布和停止监督。`evidence/production-adapter/result.json` 与四代协议/原生终端证据记录：原生问答、直接原生 CLI 普通命令、原生审批、待答不发布、未登记 setsid 子进程及打开源句柄、成果/记录/hardlink 拒绝、全范围停止后发布、晚到 CLI 输入阻断、重连阻断、同身份与工作区恢复、v2 保留 v1、同版恢复、活动命令取消与调用方超期接口。个人配置保持不变，准确测试身份最终归档；App 视觉分组未验证。
+
+`evidence/production-adapter/automated.json` 记录严格编译、13 项真实本机自动化检查、CommonJS dynamic import、最终源码指纹。自动化检查包括控制进程/代理 SIGKILL 后 launchd 保留模型端口，IPv6/其他 loopback/UDP 同端口拒绝，bootout 后停止证明丢失恢复，未知范围保留模型代理，以及发布器/复制器 SIGKILL。当前 snapshot 保留探索失败，`exploration/notes.json` 解释 rapid paste 未提交与错误空 environments 禁用工具的修正。
+
+`coalition_exploration.py` 保存发现内核资源范围的原始试验；它只对准确自有夹具 PID 发送信号，不能替代生产代际监督。`launch_socket_exploration.c` 保存 SDK 描述符激活探针；生产的端口保留/释放完整测试位于主线模块。启动权限与 audit-token 的完整证明使用生产 native helper 及正式测试。
+
+软件持久性实现 fsync/F_FULLFSYNC 和原子记录/发布；本轮实际故障测试为 SIGKILL，未进行物理断电、整机重启或存储设备失效实验。未开放的 MCP/插件/特权 broker 或其他网络目标不纳入当前兼容范围。
+
+`unknown-stop.json` 与 observer5 记录真实正常回合结束后损坏持久 admission 的负向试验：finish 为 pending_verification、不创建 v5、保留原工作区和代理监听；修复准确旧记录后 cancel 确认，v1/v2 保持不变。

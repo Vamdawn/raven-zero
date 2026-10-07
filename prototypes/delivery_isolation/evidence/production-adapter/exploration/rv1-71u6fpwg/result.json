@@ -1,0 +1,19 @@
+{
+  "thread": "01a11731-3810-7c33-b4cd-da9f690f6802",
+  "platform": "macOS 26.6.1 arm64",
+  "codex": "0.155.1",
+  "noNewThread": true,
+  "noNewManagedWorktree": true,
+  "privateSQLiteWithPersonalHome": true,
+  "modelPortOwnedByLaunchd": true,
+  "pendingQuestionDoesNotPublish": true,
+  "nativeQuestionAnswered": true,
+  "error": "production turn completed",
+  "ownedThreadArchived": true,
+  "stopCleanup": {
+    "status": "confirmed",
+    "escalated": false
+  },
+  "exactPersonalRecordStillArchived": true,
+  "personalConfigUnchanged": true
+}
