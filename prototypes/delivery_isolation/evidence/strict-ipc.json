@@ -1,0 +1,41 @@
+{
+  "scope": "controlled Unix and IPv4/IPv6 loopback services; not complete host IPC audit",
+  "unix-external": {
+    "controlExecutes": true,
+    "restrictedExit": 1,
+    "restrictedWrites": false,
+    "permissionError": true
+  },
+  "ipv4-external": {
+    "controlExecutes": true,
+    "restrictedExit": 1,
+    "restrictedWrites": false,
+    "permissionError": true
+  },
+  "ipv6-external": {
+    "controlExecutes": true,
+    "restrictedExit": 1,
+    "restrictedWrites": false,
+    "permissionError": true
+  },
+  "unix-owned": {
+    "controlExecutes": true,
+    "restrictedExit": 0,
+    "restrictedWrites": true,
+    "permissionError": false
+  },
+  "excludedMachLookup": {
+    "control": {
+      "lookupStatus": 0,
+      "hasPort": true
+    },
+    "restricted": {
+      "lookupStatus": 1100,
+      "hasPort": false
+    }
+  },
+  "brokerRejectsLocalIpv4Ipv6HostnameSpoofAndPlainHttp": true,
+  "brokerProfileStillBlocksDirectLocalService": true,
+  "brokerProfileBlocksDirectPublicConnection": true,
+  "passed": true
+}

@@ -1,0 +1,82 @@
+{
+  "version": "codex-cli 0.155.1",
+  "platform": "darwin",
+  "scope": "macOS live Codex, not Linux Codex",
+  "boundaryMode": "default-deny fixture",
+  "codexHomeVerified": true,
+  "reusedExactOwnedThread": true,
+  "threadId": "01a11731-3810-7c33-b4cd-da9f690f6802",
+  "homeMode": "personal",
+  "configChangedAfterThreadStart": false,
+  "pendingQuestionInterruptStatus": "interrupted",
+  "pendingApprovalInterruptStatus": "interrupted",
+  "interruptedRequestsDidNotWrite": true,
+  "ownerReconnectSameThread": true,
+  "nativeQuestionAnswered": true,
+  "ordinaryCommandWithUiAttached": true,
+  "nativeApprovedOnce": true,
+  "v1Manifest": {
+    "launch.py": {
+      "sha256": "fd555e72685c494d16289031ce5c50d570b69765bc26179bfb0f9f578e5577e9",
+      "executable": false
+    },
+    "normal.txt": {
+      "sha256": "317b32c143692b9939c197f6a5df54f9698df9a4882fe8bf19608968662be4fa",
+      "executable": false
+    },
+    "ready": {
+      "sha256": "c1cdbcd1b427e56f7cd4ffbc4ce2018f021655bda1549d7800b1adcf899eb4da",
+      "executable": false
+    },
+    "report-alias.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "report-link.txt": {
+      "link": "report.txt"
+    },
+    "report.txt": {
+      "sha256": "001ff82b5127727d1d4653ef36796f0923383d99707ab6afa410276034bea169",
+      "executable": false
+    },
+    "tool.sh": {
+      "sha256": "a58eaeb0c181c595fc28ae192795e63954053f2b33db81347a13de0738a6a906",
+      "executable": true
+    },
+    "worker.py": {
+      "sha256": "0dfaee691a2f2d9504c3d95f30f45de052f4ed67ef147b6edfd49498f5aeb7c6",
+      "executable": false
+    }
+  },
+  "lateNativeWriteApprovedOnce": true,
+  "lateNativeTurnCannotChangeV1": true,
+  "serverExitedBeforeBackgroundRelease": true,
+  "backgroundAttempts": {
+    "ancestorRename": "EPERM",
+    "hardlinkAlias": "EPERM",
+    "absolute": "EPERM",
+    "relative": "EPERM",
+    "symlink": "EPERM",
+    "rename": "EPERM",
+    "chmod": "EPERM",
+    "unlink": "EPERM",
+    "metadata": "EPERM"
+  },
+  "heldSourceFdChangedSource": true,
+  "backgroundCannotChangeV1": true,
+  "metadataUnchanged": true,
+  "sameThreadAfterServerRestart": true,
+  "sameWorkspaceAfterRestart": true,
+  "recoveryPreservesV1": true,
+  "v2Content": "explicit-resume-v2",
+  "passed": true,
+  "createdThreadArchivedViaProtocol": true,
+  "controlledEgressAllowedTargets": [
+    "chatgpt.com:443"
+  ],
+  "controlledEgressRejectedRequestCount": 1,
+  "createdThreadAbsentFromPersonalDatabase": false,
+  "createdThreadNoActivePersonalRecord": true,
+  "stagedCredentialRemoved": true,
+  "personalConfigUnchanged": true
+}

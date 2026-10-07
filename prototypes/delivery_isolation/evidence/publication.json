@@ -1,0 +1,32 @@
+{
+  "scope": "safe snapshot-local links and process-crash checkpoints; not power loss",
+  "internalFileDirectoryAndChainLinksPreserved": true,
+  "gitPointerExcluded": true,
+  "sourceHardlinkSeparated": true,
+  "validV1": true,
+  "crashCheckpoints": {
+    "after_file": {
+      "decision": "ignore_partial"
+    },
+    "after_tree": {
+      "decision": "ignore_partial"
+    },
+    "after_manifest": {
+      "decision": "ignore_partial"
+    },
+    "after_rename": {
+      "decision": "resume_same_version",
+      "recordPresent": false
+    },
+    "after_record": {
+      "decision": "resume_same_version",
+      "recordPresent": true
+    }
+  },
+  "lostRecordResumesSameCapturedBytes": true,
+  "v1PreservedAfterSourceChange": true,
+  "absoluteEscapeDanglingAndCycleRejected": true,
+  "directoryAliasDotDotEscapeRejected": true,
+  "tamperedVersionRequiresVerification": true,
+  "passed": true
+}

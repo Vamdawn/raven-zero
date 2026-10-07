@@ -10,8 +10,8 @@ body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:900px;ba
 <section><h2>自由操作</h2><div id="actions"></div><small>可以任意顺序点击。请求停止、确认服务端退出、确认全部任务进程停止是不同事实。</small></section>
 <section><h2>场景演练</h2><div id="tabs"></div><p id="description"></p><div id="steps"></div></section>
 <script>
-const labels={reset:'重新开始',boundary:'建立外层限制',finish:'Agent 回合完成',question:'出现待答问题',answer:'原生界面回答',stop:'请求停止服务端',exit:'确认服务端退出',freeze:'发布本版成果',late:'晚到后台写入',check:'完成检查',deliver:'交付本版',resume:'显式恢复原会话',failed:'冻结中断',interrupt:'确认回合已中断',escape:'发现外部执行绕过'};
-const initial=()=>({phase:'工作中',boundary:false,pending:false,server:'运行中',source:'初版成果',generation:0,versions:[],checked:0,delivered:[],message:'原工作区与专用会话保留。'});
+const labels={reset:'重新开始',boundary:'建立外层限制',finish:'Agent 回合完成',question:'出现待答问题',answer:'原生界面回答',stop:'请求停止服务端',exit:'确认服务端退出',freeze:'发布本版成果',late:'晚到后台写入',check:'完成检查',deliver:'交付本版',resume:'显式恢复原会话',failed:'冻结中断',interrupt:'确认回合已中断',escape:'发现外部执行绕过',cancel:'请求取消',scope:'核验完整进程范围',processExit:'确认范围内进程停止'};
+const initial=()=>({phase:'工作中',boundary:false,pending:false,server:'运行中',source:'初版成果',generation:0,versions:[],checked:0,delivered:[],cancelRequested:false,processScope:false,processesStopped:false,message:'原工作区与专用会话保留。'});
 function transition(previous,action){
   if(action==='reset')return initial();
   const s={...previous,versions:[...previous.versions],delivered:[...previous.delivered]};
@@ -30,8 +30,11 @@ function transition(previous,action){
   if(action==='check'){if(s.phase!=='检查中')return reject('尚未发布本版成果');s.checked=s.generation;s.phase='待交付';s.message='本版成果的完成检查通过。';}
   if(action==='deliver'){if(s.phase!=='待交付'||s.checked!==s.generation)return reject('需要本版检查通过');s.delivered.push(s.generation);s.phase='已交付';s.message='保存本版交付证据；确认丢失时补报同一结果。';}
   if(action==='resume'){if(s.server!=='已退出'||!['已交付','待核对'].includes(s.phase))return reject('需先结束当前阶段并核对真实状态');s.server='运行中';s.phase='工作中';s.source+=' + 显式修改';s.pending=false;s.message='核对后恢复原会话和原工作区；既有交付版本不变。';}
-  if(action==='interrupt'){if(s.phase!=='工作中')return reject('没有工作回合');s.pending=false;s.phase='待核对';s.message='中断已确认，未自动回答或批准；仍需核对实际进程，不能交付。';}
+  if(action==='interrupt'){if(!['工作中','取消待确认'].includes(s.phase))return reject('没有工作回合');s.pending=false;s.phase='待核对';s.message='中断已确认，未自动回答或批准；仍需核对实际进程，不能交付。';}
   if(action==='escape'){s.boundary=false;s.checked=0;s.phase='待核对';s.message='外部执行服务绕过限制，边界无效；保留现场，停止检查和交付。';}
+  if(action==='cancel'){s.cancelRequested=true;s.phase='取消待确认';s.message='只发出了取消请求，尚不能确认进程停止。';}
+  if(action==='scope'){s.processScope=true;s.message='本轮进程范围已核验；仍需核对退出。';}
+  if(action==='processExit'){if(!s.cancelRequested||!s.processScope||s.server!=='已退出'||s.pending)return reject('需要完整进程范围、端点退出和待答中断确认');s.processesStopped=true;s.phase='已取消';s.message='完整进程范围已确认停止；保留现场，不发布成果。';}
   if(action==='failed'){s.phase='待核对';s.message='保留原工作区和执行记录，不发布不完整成果。';}
   return s;
 }
@@ -42,13 +45,14 @@ const scenarios=[
   {name:'拒绝过早检查',description:'停止请求尚未确认、待答未处理、冻结未完成，都不能启动交付。',steps:['boundary','question','finish','answer','finish','stop','freeze','exit','failed','deliver']},
   {name:'中断待答请求',description:'问题未回答时中断回合，不能将 interrupted 当作工作成功。',steps:['boundary','question','interrupt','finish','stop','exit','deliver','resume']},
   {name:'外部执行绕过',description:'仅限制文件写入仍可被沙箱外服务绕过，发现后必须停止交付。',steps:['boundary','finish','stop','exit','freeze','escape','check','deliver']},
+  {name:'取消需要停止确认',description:'端点退出和回合中断都不能代替完整进程范围核验；未核验时保持待核对。',steps:['boundary','question','cancel','interrupt','stop','exit','processExit','deliver','scope','processExit']},
   {name:'仅复制目录',description:'反例：没有外层限制时，目录副本不能单独建立交付边界。',steps:['finish','stop','exit','freeze','deliver']}
 ];
 let current=initial(),selected=0,index=0;
 function act(action){current=transition(current,action);render();}
 function choose(i){selected=i;index=0;current=initial();render();}
 function render(){
-  const fields={'执行阶段':current.phase,'外层写入限制':current.boundary?'已建立':'未建立','待答请求':current.pending?'等待原生回答':'无','专用服务端':current.server,'原工作区内容':current.source,'成果版本':current.versions.map((v,i)=>'v'+(i+1)+'：'+v).join('；')||'尚未发布','检查通过版本':current.checked||'无','已交付版本':current.delivered.join('、')||'无'};
+  const fields={'执行阶段':current.phase,'外层写入限制':current.boundary?'已建立':'未建立','待答请求':current.pending?'等待原生回答':'无','专用服务端':current.server,'进程范围':current.processScope?'已核验':'未核验','取消停止确认':current.processesStopped?'已确认停止':'尚未确认','原工作区内容':current.source,'成果版本':current.versions.map((v,i)=>'v'+(i+1)+'：'+v).join('；')||'尚未发布','检查通过版本':current.checked||'无','已交付版本':current.delivered.join('、')||'无'};
   document.querySelector('#state').replaceChildren(...Object.entries(fields).flatMap(([name,value])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=name;dd.textContent=value;return[dt,dd];}));
   document.querySelector('#message').textContent=current.message;
   document.querySelector('#tabs').replaceChildren(...scenarios.map((scenario,i)=>{const b=document.createElement('button');b.textContent=scenario.name;b.className=i===selected?'selected':'';b.onclick=()=>choose(i);return b;}));

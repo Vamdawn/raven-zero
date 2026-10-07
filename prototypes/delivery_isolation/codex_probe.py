@@ -15,6 +15,8 @@ import tempfile
 import time
 
 from probe import WORKER, freeze, manifest, prepare, profile, wait_for
+from strict_boundary import strict_profile
+from egress_broker import Broker
 
 spec = importlib.util.spec_from_file_location('native_probe', Path(__file__).parent.parent / 'codex_native' / 'probe.py')
 native_probe = importlib.util.module_from_spec(spec)
@@ -35,10 +37,14 @@ def completed(rpc, thread_id, after):
     return event
 
 
-def run(evidence, personal=False):
-    root = Path(tempfile.mkdtemp(prefix='rv-freeze-')).resolve()
+def run(evidence, personal=False, strict=False, controlled_egress=False, reuse=None):
+    root = reuse.resolve() if reuse else Path(tempfile.mkdtemp(prefix='rv-freeze-')).resolve()
     evidence.mkdir(parents=True, exist_ok=True)
-    work, delivery, state = prepare(root)
+    if reuse:
+        assert personal and not (root / 'delivery' / 'v1').exists()
+        work, delivery, state = (root / name for name in ('work', 'delivery', 'state'))
+    else:
+        work, delivery, state = prepare(root)
     isolated_home = root / 'codex-home'
     isolated_home.mkdir(mode=0o700)
     personal_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).resolve()
@@ -55,7 +61,18 @@ def run(evidence, personal=False):
     (isolated_home / 'config.toml').write_text('model = "gpt-6-astra"\ncheck_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n[features]\napps = false\nmulti_agent = false\n')
     socket_path = root / 'server.sock'
     policy = root / 'boundary.sb'
-    policy.write_text(profile(delivery, state))
+    temporary = root / 'runtime-tmp'
+    temporary.mkdir(exist_ok=True)
+    broker = Broker() if controlled_egress else None
+    if broker:
+        assert strict
+        for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'):
+            environment[key] = f'http://127.0.0.1:{broker.port}'
+        for key in ('ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'):
+            environment.pop(key, None)
+    if strict:
+        environment['TMPDIR'] = str(temporary)
+    policy.write_text(strict_profile(work, selected_home, temporary, socket_path, delivery, state, broker.port if broker else None) if strict else profile(delivery, state))
     (work / 'worker.py').write_text(WORKER)
     (work / 'launch.py').write_text(
         'import subprocess, sys\nsubprocess.Popen([sys.executable, "worker.py", '
@@ -64,7 +81,8 @@ def run(evidence, personal=False):
     clients, servers = [], []
     native = None
     result = {'version': subprocess.check_output(['codex', '--version'], text=True).strip(),
-              'platform': sys.platform, 'scope': 'macOS live Codex, not Linux Codex'}
+              'platform': sys.platform, 'scope': 'macOS live Codex, not Linux Codex',
+              'boundaryMode': 'default-deny fixture' if strict else 'protected paths fixture'}
     print('SCRATCH', root, flush=True)
 
     def start_server():
@@ -84,9 +102,18 @@ def run(evidence, personal=False):
 
     try:
         server, rpc = start_server()
-        started = rpc.call('thread/start', {'model': 'gpt-6-astra', 'cwd': str(work),
+        parameters = {'model': 'gpt-6-astra', 'cwd': str(work),
             'sandbox': 'workspace-write', 'approvalPolicy': 'on-request', 'approvalsReviewer': 'user',
-            'developerInstructions': 'Controlled scratch prototype. No web, apps, MCP, or subagents. Execute only the requested fixture commands. Never inspect authentication files.'})
+            'developerInstructions': 'Controlled scratch prototype. No web, apps, MCP, or subagents. Execute only the requested fixture commands. Never inspect authentication files.'}
+        if reuse:
+            owned = json.loads((root / 'owned-thread.json').read_text())
+            assert owned['cwd'] == str(work)
+            result['threadId'] = owned['threadId']
+            rpc.call('thread/unarchive', {'threadId': owned['threadId']})
+            started = rpc.call('thread/resume', {'threadId': owned['threadId'], **parameters})
+            result['reusedExactOwnedThread'] = True
+        else:
+            started = rpc.call('thread/start', parameters)
         thread_id = started['thread']['id']
         result['threadId'] = thread_id
         result['homeMode'] = 'personal' if personal else 'scratch'
@@ -187,6 +214,10 @@ def run(evidence, personal=False):
             rpc.close()
         for server in servers:
             native_probe.stop_server(server, result)
+        if broker:
+            broker.close()
+            result['controlledEgressAllowedTargets'] = sorted(set(broker.allowed))
+            result['controlledEgressRejectedRequestCount'] = len(broker.rejected)
         if (work / 'ready').exists():
             try:
                 os.kill(int((work / 'ready').read_text()), 15)
@@ -231,5 +262,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', type=Path, default=Path(__file__).parent / 'evidence' / 'codex')
     parser.add_argument('--personal-home', action='store_true', help='Reuse personal config; archive the exact created thread in finally.')
+    parser.add_argument('--strict-boundary', action='store_true', help='Default-deny controlled local IPC and filesystem fixture.')
+    parser.add_argument('--controlled-egress', action='store_true', help='Use the CONNECT-only chatgpt.com fixture broker.')
+    parser.add_argument('--reuse-runtime', type=Path, help='Reuse an exact owned personal thread from a failed pre-publication probe.')
     args = parser.parse_args()
-    run(args.evidence, args.personal_home)
+    run(args.evidence, args.personal_home, args.strict_boundary, args.controlled_egress, args.reuse_runtime)

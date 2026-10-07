@@ -1,0 +1,8 @@
+{
+  "version": "codex-cli 0.155.1",
+  "platform": "darwin",
+  "scope": "macOS live Codex, not Linux Codex",
+  "boundaryMode": "default-deny fixture",
+  "stagedCredentialRemoved": true,
+  "personalConfigUnchanged": true
+}

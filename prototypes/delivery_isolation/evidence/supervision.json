@@ -1,0 +1,9 @@
+{
+  "scope": "cooperatively registered PID fixture; unregistered descendants remain unverified",
+  "launcherExitedButDetachedChildRuns": true,
+  "termRequestDoesNotConfirmStop": true,
+  "killThenNonRunnableConfirmed": true,
+  "oldGenerationNoLateWriteAfterConfirmation": true,
+  "incompleteAccountingDecision": "pending_verification",
+  "cancelConfirmedOnlyForRegisteredFixture": true
+}

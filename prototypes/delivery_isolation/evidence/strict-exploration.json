@@ -1,0 +1,17 @@
+{
+  "initialPredicateFixture": {
+    "unixExternalBlocked": true,
+    "ipv4LoopbackUnexpectedlyAllowed": true,
+    "rule": "allow network-outbound require-all remote-ip require-not localhost",
+    "verdict": "do not use this unverified predicate as the local IPC boundary"
+  },
+  "initialCodexStartup": {
+    "failure": "socket file creation not allowed",
+    "createdThread": false
+  },
+  "blockedLocalProxy": {
+    "failure": "backend transport uses the existing localhost HTTP proxy; blanket localhost denial prevents inference",
+    "exactOwnedThreadArchived": true
+  },
+  "correctedFixture": "explicit loopback deny for general IP probe; CONNECT-only allowlisted broker and one approved port for real Codex"
+}

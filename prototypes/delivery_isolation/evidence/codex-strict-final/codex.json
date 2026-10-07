@@ -1,0 +1,16 @@
+{
+  "version": "codex-cli 0.155.1",
+  "platform": "darwin",
+  "scope": "macOS live Codex, not Linux Codex",
+  "boundaryMode": "default-deny fixture",
+  "codexHomeVerified": true,
+  "threadId": "01a11731-3810-7c33-b4cd-da9f690f6802",
+  "homeMode": "personal",
+  "configChangedAfterThreadStart": true,
+  "createdThreadArchivedViaProtocol": true,
+  "createdThreadAbsentFromPersonalDatabase": false,
+  "createdThreadNoActivePersonalRecord": true,
+  "stagedCredentialRemoved": true,
+  "ownedScratchTrustEntryRemoved": true,
+  "personalConfigUnchanged": true
+}

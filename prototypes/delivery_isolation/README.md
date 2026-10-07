@@ -19,9 +19,9 @@ python3 prototypes/delivery_isolation/edge_probe.py
 
 macOS 探针需要本机 Python、Git 与 sandbox-exec。Linux 实验使用现有 Docker 与 `node:24.15.0-bookworm-slim`，不安装系统服务。真实 Codex 探针使用已有文件认证缓存，仅将 `auth.json` 暂存到权限 0700 的测试 Home；退出删除缓存及测试 Home，不复制个人配置或整体链接个人目录。模型为本机已验证的 `gpt-6-astra`。临时凭证不写日志、不提交。
 
-双击 `index.html` 可操作同一边界的纯状态模型，包含自由操作与五个场景；页面是说明模型，不代替真实实验。
+双击 `index.html` 可操作同一边界的纯状态模型，包含自由操作与八个场景；页面是说明模型，不代替真实实验。
 
-2026-10-08 起初版验证仅针对 macOS；Linux 命令和证据保留为历史探索。个人 Home 探针每轮仅创建一个准确记录身份的会话，最终通过协议归档；`thread/start` 会新增该临时目录的信任条目，退出仅清理自己新增且内容符合预期的条目，不恢复覆盖整个个人配置。归档记录仍保留在个人 Home，未核验 App 的视觉分组消失。当前页面为七个场景。
+2026-10-08 起初版验证仅针对 macOS；Linux 命令和证据保留为历史探索。个人 Home 探针每轮仅创建一个准确记录身份的会话，最终通过协议归档；`thread/start` 会新增该临时目录的信任条目，退出仅清理自己新增且内容符合预期的条目，不恢复覆盖整个个人配置。归档记录仍保留在个人 Home，未核验 App 的视觉分组消失。
 
 ## 已保存的证据
 
@@ -48,3 +48,22 @@ macOS 探针需要本机 Python、Git 与 sandbox-exec。Linux 实验使用现�
 成功交付不意味着全部后台进程已停止。取消、超期与再次恢复仍需核对真实执行状态；不能将写入隔离当作停止确认。服务端有一次必须 SIGKILL 才确认退出，探针已等待退出并收回自身夹具进程；容器均删除。未核验 App UI 分组、跨进程持久恢复协议、崩溃发布、任意仓库链接结构或完整检查与交付失败组合。
 
 一次性 Python/HTML 不合入生产；主线只保留设计决定，实施任务继续验证上述剩余条件。
+
+## 下一轮 macOS 验证（2026-10-08）
+
+```sh
+python3 prototypes/delivery_isolation/ipc_probe.py
+python3 prototypes/delivery_isolation/supervision_probe.py
+python3 prototypes/delivery_isolation/publication_probe.py
+python3 prototypes/delivery_isolation/codex_probe.py --personal-home --strict-boundary --controlled-egress --evidence prototypes/delivery_isolation/evidence/codex-broker
+```
+
+真实探针使用本机已有 localhost HTTP 代理，经只接受 `CONNECT chatgpt.com:443` 的临时出口转发；需要现有 HTTPS_PROXY 为无凭证的 localhost HTTP 代理，本轮本机符合。夹具服务仅绑定 localhost，不记录 HTTP/TLS 内容或凭证。只允许专用 Unix socket 与这个受控出口端口，其他网络与未允许 Mach 服务由默认拒绝策略约束。策略语法核对 [Codex 0.155.1 源码](https://github.com/openai/codex/tree/rust-v0.155.1/codex-rs/sandboxing/src)。这是受控兼容性夹具，未锁定正式网络组件或用户配置。
+
+- `evidence/codex-broker/`：严格策略下真实原生问答、普通命令、审批、晚到写入拒绝、重启恢复通过。复用失败探针创建的准确会话，最终归档；本轮只新增一个会话、零 managed worktree，个人配置保持原样。
+- `evidence/strict-ipc.json`：对照能调用外部服务，默认拒绝夹具阻断 Unix/IPv4/IPv6 外部服务与未允许的 Mach 服务查询；专用 socket 仍可用。出口拒绝本地目标、伪装域名及普通 HTTP 请求，且任务不能直接连接另一 localhost 服务或绕过出口连接公网。
+- `evidence/codex-strict/`、`evidence/codex-strict-final/` 和 `strict-exploration.json`：初次未允许 socket 文件创建导致启动失败；单独阻断所有 localhost 又阻断本机推理代理。负向 IP 匹配组合初次意外放行 IPv4，已用明确拒绝规则及仅允许出口端口修正并实测。不能引用这些失败探索为原生验证成功。
+- `evidence/supervision.json`：协作登记的子进程脱离父进程组且忽略 TERM；发 KILL 并核对不可运行后，释放夹具不再写文件。完整性未知时模型选择 pending_verification。登记由夹具配合完成，尚未证明任意 Agent 子进程的完整覆盖、PID 重用及重启后代际识别。
+- `evidence/publication.json`：内部文件、目录与链式链接保留；拒绝绝对、逃逸、悬空、循环以及目录别名加 `..` 的逃逸链接。独立文件 inode、Git pointer 排除及旧版本保留通过。实际在文件复制、树复制、清单写入、目录发布和记录保存五处 SIGKILL；发布前三处排除 staging，发布后按已捕获且核验的同一版本恢复。清单篡改进入待核对。
+
+文件发布夹具只验证进程崩溃，尚未完成目录 fsync 与断电持久性，也未把这些机制整合为生产发布器。允许的 Mach 系统服务、第三方 MCP/插件、个人 Home 中的全部权限组合及任意进程覆盖继续留在 #1 正式验收；初版 Linux 仍排除。本轮只验证固定模型目标网络，Git 或用户自定义网络目标需要正式受控出口策略，不静默放宽为任意 localhost 服务。
