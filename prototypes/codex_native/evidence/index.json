@@ -1,0 +1,27 @@
+{
+  "question": {
+    "threadId": "01a11568-a015-75e0-867f-ec735d988a73",
+    "turnId": "01a11568-a14e-71b1-be7c-0bc1e2402124",
+    "result": "question/result.json"
+  },
+  "approval": {
+    "threadId": "01a11568-9faa-7ed3-b361-205950c06746",
+    "turnId": "01a11568-a14e-75a0-ba2c-bf40c3a5cb97",
+    "result": "approval/result.json"
+  },
+  "disconnect": {
+    "threadId": "01a1156a-4675-7420-a28b-f75a3ed4ab71",
+    "turnId": "01a1156a-479f-7871-81d3-976c4273b271",
+    "result": "disconnect/result.json"
+  },
+  "isolation": {
+    "threadId": "01a1156a-d5f4-7ef2-a617-e2e001b64d47",
+    "turnId": "01a1156a-d728-7331-be35-a664c713fc33",
+    "result": "isolation/result.json"
+  },
+  "background": {
+    "threadId": "01a1156c-0bab-7370-bdf2-a1728eb146d8",
+    "turnId": "01a1156c-0d32-7922-9b01-4c7e77aba648",
+    "result": "background/result.json"
+  }
+}

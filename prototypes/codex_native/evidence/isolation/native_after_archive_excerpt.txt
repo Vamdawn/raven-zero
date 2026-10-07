@@ -1,0 +1,7 @@
+› Run exactly `printf finished > completion-marker.txt` with exec_command, then say done and finish. Do nothing else.
+• Ran printf finished > completion-marker.txt
+• done
+› Run exactly `printf late > after-completion-marker.txt` with exec_command, then finish.
+• Ran printf late > after-completion-marker.txt
+• 已完成。
+■ Connection lost. Attempting to reconnect… ◦ Reconnecting to app-server… (1s)  › Ask Codex to do anything    ctrl+c quit   •                  ◦     2            •                  ◦3              Run ex actly`printfblocked>after-server-exit-marker.txt`withexec_command.   •           4       ◦                 •      5           ◦                  •6

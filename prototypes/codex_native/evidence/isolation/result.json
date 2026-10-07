@@ -1,0 +1,36 @@
+{
+  "case": "isolation",
+  "version": "codex-cli 0.155.1",
+  "workspace": "<PROTOTYPE>/workspace",
+  "threadId": "01a1156a-d5f4-7ef2-a617-e2e001b64d47",
+  "model": "gpt-6-astra",
+  "approvalPolicy": "on-request",
+  "approvalsReviewer": "user",
+  "sandbox": {
+    "type": "workspaceWrite",
+    "writableRoots": [],
+    "networkAccess": false,
+    "excludeTmpdirEnvVar": false,
+    "excludeSlashTmp": false
+  },
+  "turnId": "01a1156a-d728-7331-be35-a664c713fc33",
+  "turnStatus": "completed",
+  "bothObserversCompleted": true,
+  "files": {
+    "completion-marker.txt": "finished"
+  },
+  "nativeCanStartAfterCompleted": true,
+  "lateTurnStatus": "completed",
+  "archiveResponse": {},
+  "loadedAfterArchive": false,
+  "resumeArchivedError": "thread/resume: {'code': -32600, 'message': 'session 01a1156a-d5f4-7ef2-a617-e2e001b64d47 is archived. Run `codex unarchive 01a1156a-d5f4-7ef2-a617-e2e001b64d47` to unarchive it first.'}",
+  "resumeAfterUnarchive": "01a1156a-d5f4-7ef2-a617-e2e001b64d47",
+  "canAcceptInputAfterArchiveResume": true,
+  "serverExitedBeforeChecks": true,
+  "noWriteAfterServerExit": true,
+  "filesAfterClosure": {
+    "after-completion-marker.txt": "late",
+    "completion-marker.txt": "finished"
+  },
+  "serverExitCode": 0
+}

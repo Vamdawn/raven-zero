@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-07T08:04:16.343365Z","level":"WARN","fields":{"message":"failed to upgrade control socket websocket connection: WebSocket protocol error: httparse error: invalid token"},"target":"codex_app_server_transport::transport::unix_socket"}

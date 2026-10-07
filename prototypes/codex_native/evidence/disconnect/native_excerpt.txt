@@ -1,0 +1,1 @@
+› Run exactly `sleep 12; printf continued > disconnect-marker.txt` with exec_command, wait for it to finish, then say done and end.

@@ -1,0 +1,24 @@
+{
+  "case": "approval",
+  "version": "codex-cli 0.155.1",
+  "workspace": "<PROTOTYPE>/workspace",
+  "threadId": "01a11568-9faa-7ed3-b361-205950c06746",
+  "model": "gpt-6-astra",
+  "approvalPolicy": "on-request",
+  "approvalsReviewer": "user",
+  "sandbox": {
+    "type": "readOnly",
+    "networkAccess": false
+  },
+  "turnId": "01a11568-a14e-75a0-ba2c-bf40c3a5cb97",
+  "pendingRequestId": 0,
+  "stillWaitingWithoutUi": true,
+  "markerAbsentBeforeAnswer": true,
+  "answeredViaNativeKeys": true,
+  "turnStatus": "completed",
+  "bothObserversCompleted": true,
+  "files": {
+    "approval-marker.txt": "approved"
+  },
+  "serverExitCode": 0
+}

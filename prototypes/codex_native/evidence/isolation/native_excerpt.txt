@@ -1,0 +1,6 @@
+› Run exactly `printf finished > completion-marker.txt` with exec_command, then say done and finish. Do nothing else.
+• Ran printf finished > completion-marker.txt
+• done  › Ask Codex to do anything   gpt-6-astra high · Context 97% left · <PROTOTYPE>/workspace · wee…
+› Run exactly `printf late > after-completion-marker.txt` with exec_command, then finish.
+• Ran printf late > after-completion-marker.txt
+• 已完成。  › Ask Codex to do anything   gpt-6-astra high · Context 94% left · <PROTOTYPE>/workspace · wee…

@@ -1,0 +1,31 @@
+{
+  "case": "background",
+  "version": "codex-cli 0.155.1",
+  "workspace": "<PROTOTYPE>/workspace",
+  "threadId": "01a1156c-0bab-7370-bdf2-a1728eb146d8",
+  "model": "gpt-6-astra",
+  "approvalPolicy": "on-request",
+  "approvalsReviewer": "user",
+  "sandbox": {
+    "type": "workspaceWrite",
+    "writableRoots": [],
+    "networkAccess": false,
+    "excludeTmpdirEnvVar": false,
+    "excludeSlashTmp": false
+  },
+  "turnId": "01a1156c-0d32-7922-9b01-4c7e77aba648",
+  "turnStatus": "completed",
+  "bothObserversCompleted": true,
+  "files": {
+    "launch_background.py": "import subprocess\nfrom pathlib import Path\nchild = subprocess.Popen([\"python3\", \"linger.py\"], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\nPath(\"child-pid.txt\").write_text(str(child.pid))\n",
+    "linger.py": "from pathlib import Path\nimport time\nPath(\"child-ready.txt\").write_text(\"ready\")\ndeadline = time.monotonic() + 45\nwhile time.monotonic() < deadline:\n    if Path(\"release-background.txt\").exists():\n        Path(\"after-server-exit-background.txt\").write_text(\"late background write\")\n        break\n    time.sleep(0.1)\n",
+    "child-pid.txt": "6990",
+    "child-ready.txt": "ready"
+  },
+  "backgroundPid": 6990,
+  "backgroundMarkerAbsentAtCompletion": true,
+  "serverExitedBeforeRelease": true,
+  "backgroundWriteAfterServerExit": true,
+  "backgroundWrite": "late background write",
+  "serverExitCode": 0
+}

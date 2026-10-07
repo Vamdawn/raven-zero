@@ -1,0 +1,25 @@
+{
+  "case": "disconnect",
+  "version": "codex-cli 0.155.1",
+  "workspace": "<PROTOTYPE>/workspace",
+  "threadId": "01a1156a-4675-7420-a28b-f75a3ed4ab71",
+  "model": "gpt-6-astra",
+  "approvalPolicy": "on-request",
+  "approvalsReviewer": "user",
+  "sandbox": {
+    "type": "workspaceWrite",
+    "writableRoots": [],
+    "networkAccess": false,
+    "excludeTmpdirEnvVar": false,
+    "excludeSlashTmp": false
+  },
+  "turnId": "01a1156a-479f-7871-81d3-976c4273b271",
+  "pendingRequestId": null,
+  "nativeDisconnectedBeforeCompletion": true,
+  "turnStatus": "completed",
+  "bothObserversCompleted": true,
+  "files": {
+    "disconnect-marker.txt": "continued"
+  },
+  "serverExitCode": 0
+}

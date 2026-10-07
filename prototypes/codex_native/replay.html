@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codex 接入验证 · 原型回放</title>
+<style>
+  :root{font-family:system-ui,sans-serif;color:#233434;background:#f4f6f3}
+  body{max-width:960px;margin:48px auto;padding:0 24px;line-height:1.7}
+  h1{font-size:30px;margin-bottom:8px}h2{font-size:20px;margin-top:30px}
+  small{color:#526763}p{max-width:820px}
+  article{background:white;border:1px solid #d8e0dc;border-radius:12px;padding:24px;margin:20px 0}
+  dl{display:grid;grid-template-columns:160px 1fr;gap:10px;margin:0}dt{color:#526763}dd{margin:0;overflow-wrap:anywhere}
+  button{font:inherit;padding:8px 14px;margin:4px 6px 4px 0;border:1px solid #aec1ba;border-radius:7px;background:white;cursor:pointer}
+  button[aria-selected=true],button.primary{background:#245e51;color:white;border-color:#245e51}
+  #feedback{color:#9a471e;min-height:28px}#steps{padding-top:10px}#steps button{display:block}
+  @media(max-width:600px){body{margin-top:24px}dl{grid-template-columns:110px 1fr}}
+</style>
+<small>PROTOTYPE · 2026-10-07 · Codex 0.155.1 · macOS</small>
+<h1>原生交互可用，收尾还缺一道边界</h1>
+<p>这个原型回放实测得到的状态变化：专用 Agent 工作会话能由原生 CLI 接手问答与审批；回合结束、归档和服务端退出各自能阻止什么？所有按钮只改变内存演示。它不运行 Codex，不能替代真实探针，也不代表 Raven Zero 已实现这些行为。</p>
+<article>
+  <dl id="state"></dl>
+  <p id="feedback" role="status" aria-live="polite"></p>
+</article>
+<h2>自由探索</h2>
+<div id="actions"></div>
+<h2>按实测场景回放</h2>
+<div id="tabs" role="tablist" aria-label="验证场景"></div>
+<article>
+  <p id="description"></p>
+  <div id="steps"></div>
+</article>
+<p><small>事实来源：同目录 evidence/ 中的真实协议事件、终端摘录和文件结果。问答在 Plan 模式验证；两个观察连接始终保留；本演示不推断零订阅连接时的行为。</small></p>
+<script>
+  // Pure in-memory replay of observed facts; not a production lifecycle implementation.
+  const labels = {
+    start:'开始工作', question:'产生待答问题', approval:'产生待批准命令',
+    attach:'附着原生 CLI', answer:'经原生 CLI 回答', approve:'经原生 CLI 批准一次',
+    detach:'断开原生 CLI', finish:'回合结束', late:'从 CLI 再次写入',
+    archive:'归档会话', unarchive:'取消归档', background:'启动脱离会话的子进程',
+    stop:'关闭专用服务端', release:'释放后台写入夹具', reset:'重置'
+  };
+  function initial() {
+    return {server:true,phase:'未开始',cli:false,observers:2,archived:false,
+      child:false,files:[],verdict:'尚未建立隔离',feedback:''};
+  }
+  function reduce(current, action) {
+    if(action==='reset') return initial();
+    const state={...current,files:[...current.files],feedback:''};
+    const reject=message=>({...state,feedback:message});
+    if(action==='stop') {
+      state.server=false; state.cli=false; state.phase='服务端已退出';
+      state.verdict=state.child?'仍有脱离会话的子进程；隔离未建立':'CLI 新请求已阻断；全部进程的写入隔离尚未证明';
+      return state;
+    }
+    if(action==='release') {
+      if(!state.child) return reject('当前没有后台夹具可释放。');
+      state.files.push('后台文件：late background write'); state.child=false;
+      state.verdict=state.server?'后台进程产生写入；尚未开始收尾':'反例：服务端退出后，后台进程仍可写入'; return state;
+    }
+    if(!state.server) return reject('专用服务端已经退出，此端点不接受新请求。');
+    if(action==='unarchive') {state.archived=false;state.phase='空闲';return state;}
+    if(state.archived) return reject('会话已归档；实测直接恢复被拒。取消归档后可以再次输入。');
+    if(action==='attach') {state.cli=true;return state;}
+    if(action==='detach') {state.cli=false;return state;}
+    if(action==='archive') {
+      state.archived=true;state.phase='已归档并卸载';state.cli=false;
+      state.verdict='可取消归档，不是永久写入隔离';return state;
+    }
+    if(action==='start') {state.phase='工作中';return state;}
+    if(action==='question'||action==='approval') {
+      if(state.phase!=='工作中') return reject('先开始工作，再产生本地交互请求。');
+      state.phase=action==='question'?'等待本地回答':'等待本地审批';return state;
+    }
+    if(action==='answer'||action==='approve') {
+      const expected=action==='answer'?'等待本地回答':'等待本地审批';
+      if(!state.cli||state.phase!==expected) return reject('需要原生 CLI 附着对应的待答请求。');
+      state.phase='工作中';
+      if(action==='approve') state.files.push('审批文件：approved');return state;
+    }
+    if(action==='background') {
+      if(state.phase!=='工作中') return reject('先开始工作。');
+      state.child=true;return state;
+    }
+    if(action==='finish') {
+      if(state.phase!=='工作中') return reject('等待交互时不能把回合标记为已完成。');
+      state.phase='回合已完成';state.verdict='完成事件不会禁止下一轮写入';return state;
+    }
+    if(action==='late') {
+      if(!state.cli||state.phase!=='回合已完成') return reject('先完成回合，并保持原生 CLI 附着。');
+      state.files.push('完成后文件：late');state.verdict='反例：同一 CLI 在完成后仍能写入';return state;
+    }
+    return state;
+  }
+  const scenarios=[
+    {name:'问答',description:'先产生问题，再附着 CLI；两个观察连接收到同一请求。CLI 选择 Blue 后，回合继续并完成。',steps:['start','question','attach','answer','finish']},
+    {name:'审批',description:'只读沙箱中的临时文件写入先等待审批；CLI 只批准一次后，实际产生 approved 文件。',steps:['start','approval','attach','approve','finish']},
+    {name:'断开',description:'命令运行期间断开 CLI，两个观察连接仍在线；工作继续并完成。这不代表关闭 CLI 已停止执行。',steps:['start','attach','detach','finish']},
+    {name:'完成后写入',description:'回合完成后，同一个原生 CLI 发起下一轮，实际成功产生 late 文件。',steps:['start','attach','finish','late']},
+    {name:'归档',description:'归档卸载会话并阻止直接恢复；取消归档后，输入能力重新开启。归档不是不可撤销的隔离。',steps:['start','attach','finish','archive','unarchive','attach']},
+    {name:'后台进程',description:'真实任务通过 start_new_session=True 启动子进程。确认服务端退出后释放夹具，仍产生后台文件。',steps:['start','background','finish','stop','release']}
+  ];
+  let state=initial();let scenario=0;let step=0;
+  const fields={server:'专用服务端',phase:'工作阶段',cli:'原生 CLI',observers:'观察连接',archived:'会话归档',child:'脱离会话的子进程',files:'文件变化',verdict:'隔离结论'};
+  function render() {
+    document.querySelector('#state').replaceChildren();
+    for(const [key,label] of Object.entries(fields)) {
+      const dt=document.createElement('dt');dt.textContent=label;
+      const dd=document.createElement('dd');
+      dd.textContent=Array.isArray(state[key])?(state[key].join('；')||'无'):typeof state[key]==='boolean'?(state[key]?'是':'否'):state[key];
+      document.querySelector('#state').append(dt,dd);
+    }
+    document.querySelector('#feedback').textContent=state.feedback;
+    document.querySelector('#description').textContent=scenarios[scenario].description;
+    document.querySelector('#steps').replaceChildren();
+    scenarios[scenario].steps.forEach((action,index)=>{
+      const button=document.createElement('button');button.textContent=`${index+1}. ${labels[action]}`;
+      button.disabled=index!==step;button.className=index===step?'primary':'';
+      button.onclick=()=>{state=reduce(state,action);step++;render();};
+      document.querySelector('#steps').append(button);
+    });
+    document.querySelectorAll('#tabs button').forEach((button,index)=>button.setAttribute('aria-selected',index===scenario));
+  }
+  for(const [action,label] of Object.entries(labels)) {
+    const button=document.createElement('button');button.textContent=label;
+    button.onclick=()=>{state=reduce(state,action);render();};document.querySelector('#actions').append(button);
+  }
+  scenarios.forEach((item,index)=>{
+    const button=document.createElement('button');button.textContent=item.name;button.setAttribute('role','tab');
+    button.onclick=()=>{scenario=index;step=0;state=initial();render();};document.querySelector('#tabs').append(button);
+  });
+  render();
+</script>
+</html>

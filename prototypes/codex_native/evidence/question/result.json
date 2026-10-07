@@ -1,0 +1,25 @@
+{
+  "case": "question",
+  "version": "codex-cli 0.155.1",
+  "workspace": "<PROTOTYPE>/workspace",
+  "threadId": "01a11568-a015-75e0-867f-ec735d988a73",
+  "model": "gpt-6-astra",
+  "approvalPolicy": "on-request",
+  "approvalsReviewer": "user",
+  "sandbox": {
+    "type": "workspaceWrite",
+    "writableRoots": [],
+    "networkAccess": false,
+    "excludeTmpdirEnvVar": false,
+    "excludeSlashTmp": false
+  },
+  "turnId": "01a11568-a14e-71b1-be7c-0bc1e2402124",
+  "pendingRequestId": 0,
+  "stillWaitingWithoutUi": true,
+  "markerAbsentBeforeAnswer": true,
+  "answeredViaNativeKeys": true,
+  "turnStatus": "completed",
+  "bothObserversCompleted": true,
+  "files": {},
+  "serverExitCode": 0
+}
