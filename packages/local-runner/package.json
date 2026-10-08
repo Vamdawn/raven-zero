@@ -1,0 +1,9 @@
+{
+  "name": "@raven-zero/local-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": "24.x"},
+  "exports": {".": {"types": "./dist/src/index.d.ts", "default": "./dist/src/index.js"}},
+  "dependencies": {"@raven-zero/contracts": "workspace:*"}
+}

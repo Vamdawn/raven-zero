@@ -28,6 +28,18 @@ importers:
         specifier: 8.18.2
         version: 8.18.2
 
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+
+  packages/local-runner:
+    dependencies:
+      '@raven-zero/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
 packages:
 
   '@types/node@24.19.1':
