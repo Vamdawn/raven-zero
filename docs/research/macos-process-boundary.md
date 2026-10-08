@@ -62,6 +62,8 @@ Seatbelt 的 `remote ip` 包含 TCP/UDP 及 IPv4/IPv6，单独保留一个 IPv4 
 
 `pnpm test`：13 项检查通过，覆盖未登记 orphan、过期 PID generation、其他作业不受影响、准入权限、原生网关竞争、控制进程/代理 SIGKILL 端口保留、bootout 后停止回执丢失与恢复清理顺序、发布与链接、发布崩溃以及 Home/网络保护。TypeScript 严格编译通过，ESM 入口与 CommonJS dynamic import 可消费。
 
+合并前规格审查发现任务工作区包含 CODEX_HOME 时缺少反向重叠检查，且路径包含判断误将 `..home` 这样的内部目录名视为父路径。修复后，在 Codex 启动前拒绝 Home/工作区相同、双向包含及规范化后的符号链接别名；新增真实临时目录回归在修复前失败、修复后通过。再次运行严格构建和全部 14 项检查通过，未启动真实 Codex 或创建新会话；下述固定原型证据仍对应此前的 13 项检查与真实验收构建。
+
 真实 Codex 最终构建通过原生问答、直接原生 CLI 普通命令、原生审批、待答不发布、持有源文件句柄的未登记 setsid 后台进程、成果/记录/hardlink 写入拒绝、完整范围停止后发布、晚到 CLI 输入及重连阻断、同身份/工作区恢复、v2 保留 v1、同版恢复、活动命令取消和调用方期限停止。正常回合后故意损坏 admission 的真实负向验收返回 pending_verification、不发布 v5，保留工作区和模型监听；修复准确旧记录后取消确认，v1/v2 保持不变。失败探索也保存，不以失败试验替代通过结果。[原型固定提交 7bc9e44：一次性探针、最终协议、终端、13 项检查与失败探索](https://github.com/Vamdawn/raven-zero/tree/7bc9e443c020981f6213ef948cf3c6b6e4e1ecb4/prototypes/delivery_isolation)。最终构建及源码指纹记录在 evidence/production-adapter/，真实负向验收见 unknown-stop.json。
 
 后续完整客户端把 publication 与停止证明写入 Raven 执行记录后才释放名额、开始检查；调度取消/期限、产物版本归属在 #3/#6/#7 验收，Git 元数据与可信交付在 #4 验收，真实 HTTP 全链路在 #8 验收。它们继续依赖本模块的安全入口，不重新放宽 Agent 权限。

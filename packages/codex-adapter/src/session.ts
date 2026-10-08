@@ -1,5 +1,5 @@
 import {mkdir, lstat, realpath, writeFile, readFile, readdir} from 'node:fs/promises';
-import {join, relative, isAbsolute, basename} from 'node:path';
+import {join, relative, isAbsolute, basename, sep} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {z} from 'zod';
 import {BOUNDARY, command, sync} from './native.js';
@@ -78,10 +78,10 @@ export class CodexSession {
       home: await realpath(input.home), root: await realpath(input.root)};
     function contains(parent: string, child: string): boolean {
       const path = relative(parent, child);
-      return path === '' || (!path.startsWith('..') && !isAbsolute(path));
+      return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path));
     }
     if (contains(options.work, options.root) || contains(options.home, options.root) ||
-        contains(options.root, options.home) || contains(options.home, options.work)) {
+        contains(options.root, options.home) || contains(options.home, options.work) || contains(options.work, options.home)) {
       throw new Error('Protected root/Home/task workspace overlap');
     }
     if (contains(options.work, await realpath(BOUNDARY)) || contains(options.work, await realpath(process.execPath))) {
