@@ -47,7 +47,7 @@ test('hook installation preserves the previous hook, is repeatable, and failed c
     execFileSync(git, ['add', '.'], {cwd: root, env});
     const commit = spawnSync(git, ['commit', '--quiet', '-m', 'checks pass'], {cwd: root, env, encoding: 'utf8'});
     assert.equal(commit.status, 0, commit.stderr);
-    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'test\ntest:tools\nprevious\n');
+    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ntest\ntest:tools\n');
     const head = execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'});
     writeFileSync(join(root, 'change'), 'next');
     execFileSync(git, ['add', '.'], {cwd: root, env});
@@ -56,11 +56,43 @@ test('hook installation preserves the previous hook, is repeatable, and failed c
       {cwd: root, env: {...env, CHECK_EXIT: '23'}, encoding: 'utf8'});
     assert.notEqual(failed.status, 0);
     assert.equal(execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'}), head);
-    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'test\n');
+    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ntest\n');
     writeFileSync(join(root, 'change'), 'not staged');
     writeFileSync(join(root, 'record'), '');
     assert.notEqual(run(root, 'check.mjs', ['--staged'], env).status, 0);
     assert.equal(readFileSync(join(root, 'record'), 'utf8'), '');
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test('a previous formatter runs before validation and index mutation during tests prevents commit', () => {
+  const root = fixture();
+  try {
+    cpSync(join(repository, '.githooks'), join(root, '.githooks'), {recursive: true});
+    mkdirSync(join(root, 'scripts')); mkdirSync(join(root, 'bin'));
+    cpSync(join(repository, 'scripts/check.mjs'), join(root, 'scripts/check.mjs'));
+    writeFileSync(join(root, '.gitignore'), 'bin/\n');
+    writeFileSync(join(root, 'change'), 'unformatted');
+    writeFileSync(join(root, '.git/hooks/pre-commit'), '#!/bin/sh\nprintf formatted > change\ngit add change\n', {mode: 0o755});
+    writeFileSync(join(root, 'bin/pnpm'), `#!/bin/sh
+set -eu
+[ "$(cat change)" = formatted ]
+`, {mode: 0o755});
+    const env = {...environment, PATH: `${join(root, 'bin')}:${environment.PATH}`};
+    assert.equal(run(root, 'install_hooks.mjs').status, 0);
+    execFileSync(git, ['add', '.'], {cwd: root, env});
+    const commit = spawnSync(git, ['commit', '--quiet', '-m', 'formatter before checks'], {cwd: root, env, encoding: 'utf8'});
+    assert.equal(commit.status, 0, commit.stderr);
+    assert.equal(execFileSync(git, ['show', 'HEAD:change'], {cwd: root, env, encoding: 'utf8'}), 'formatted');
+    const head = execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'});
+    // Both test commands succeed, but they mutate the index while running.
+    writeFileSync(join(root, 'bin/pnpm'), `#!/bin/sh
+if [ "$1" = test ]; then printf untested > change; git add change; fi
+exit 0
+`);
+    const failed = spawnSync(git, ['commit', '--quiet', '--allow-empty', '-m', 'index changed'], {cwd: root, env, encoding: 'utf8'});
+    assert.notEqual(failed.status, 0);
+    assert.match(failed.stderr, /Staged contents changed during validation/);
+    assert.equal(execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'}), head);
   } finally { rmSync(root, {recursive: true, force: true}); }
 });
 

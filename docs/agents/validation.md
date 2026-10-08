@@ -2,9 +2,9 @@
 
 ## 提交检查
 
-在仓库根目录执行 `pnpm hooks:install`，为当前 checkout 安装 Git pre-commit 入口；重复安装保持原样。检查策略在版本管理中的 `.githooks/pre-commit` 和 `scripts/check.mjs`，旧钩子原样保存在 Git 公共目录的 `hooks/pre-commit.raven-previous`，Raven 检查通过后继续执行它。已有自定义 `core.hooksPath` 或冲突备份时，安装失败并保留原文件；按现有钩子管理方式串联 `node scripts/check.mjs --staged`。
+在仓库根目录执行 `pnpm hooks:install`，为当前 checkout 安装 Git pre-commit 入口；重复安装保持原样。检查策略在版本管理中的 `.githooks/pre-commit` 和 `scripts/check.mjs`，旧钩子原样保存在 Git 公共目录的 `hooks/pre-commit.raven-previous`，先执行它，再做 Raven 检查，确保格式化等改动也经过验证。已有自定义 `core.hooksPath` 或冲突备份时，安装失败并保留原文件；按现有钩子管理方式在最后串联 `node scripts/check.mjs --staged`。
 
-手动检查用 `pnpm check`；具体检查命令以根 package.json 为准。提交时先暂存完整改动：钩子拒绝未暂存的已跟踪改动及未忽略的新文件，使测试读取的内容与提交内容一致。失败会阻止提交。只暂存其中一部分时，先把其他改动移出工作树，完成提交后恢复。
+手动检查用 `pnpm check`；具体检查命令以根 package.json 为准。提交时先暂存完整改动：钩子在检查前后拒绝未暂存的已跟踪改动及未忽略的新文件，并确认待提交树在检查期间未变化，使测试读取的内容与提交内容一致。失败会阻止提交。只暂存其中一部分时，先把其他改动移出工作树，完成提交后恢复。
 
 完整检查依赖模块 README 中已验收的 macOS/arm64 版本、Node.js 24、Command Line Tools 和非 root GUI 用户。它运行本机临时 launchd/Seatbelt 行为测试，不调用真实模型、不创建 Codex 会话或 managed worktree。当前入口是本机提交检查；仓库没有云端 CI，通用 hosted runner 不作为本模块完整验收环境。
 
