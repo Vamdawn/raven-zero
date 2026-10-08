@@ -1,5 +1,7 @@
 # Codex 原生交互与自动收尾隔离验证
 
+当前状态（2026-10-08）：#1 的内部隔离模块与 macOS 验收已完成，并通过 [PR #10](https://github.com/Vamdawn/raven-zero/pull/10) 合入 main。运行依据是[模块接口](../../packages/codex-adapter/README.md)与[最新验收记录](../research/macos-process-boundary.md)；真实验证与收尾按[验证流程](../agents/validation.md)执行。以下内容保留 2026-10-07 的原型反例、失败与个人状态影响，反映当时结果。
+
 2026-10-07 对本机 Codex CLI 0.155.1 运行真实原型。结论：**原生 CLI 交互路径可行，首版自动收尾写入隔离尚未通过。** 保持原生 CLI 的已确认产品方向；在建立新的隔离边界前，不能将回合完成或进程退出等同于安全开始检查、交付。
 
 ## 验证环境与原始来源

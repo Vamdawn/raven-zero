@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+if [ -d /Library/Developer/CommandLineTools ]; then
+  DEVELOPER_DIR=/Library/Developer/CommandLineTools
+  export DEVELOPER_DIR
+fi
+cd "$(git rev-parse --show-toplevel)"
+previous="$(git rev-parse --git-common-dir)/hooks/pre-commit.raven-previous"
+if [ -x "$previous" ]; then
+  "$previous" "$@"
+fi
+node scripts/check.mjs --staged

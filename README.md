@@ -4,7 +4,10 @@
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm hooks:install
 pnpm test
 ```
 
 [模块接口与环境要求](packages/codex-adapter/README.md) · [隔离契约](docs/design/delivery-workspace-isolation.md) · [验收及限制](docs/research/macos-process-boundary.md)
+
+[提交检查与真实验证收尾](docs/agents/validation.md)：`pnpm check` 执行差异检查、严格构建、模块行为测试与工具测试。钩子安装保留已有 pre-commit；完整检查使用已验收的本机 macOS 环境。
