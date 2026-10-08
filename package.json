@@ -5,6 +5,11 @@
   "packageManager": "pnpm@11.0.9",
   "engines": {"node": "24.x"},
   "scripts": {
+    "check": "node scripts/check.mjs",
+    "hooks:install": "node scripts/install_hooks.mjs",
+    "test:tools": "node --test --test-timeout=60000 scripts/test/*.test.mjs",
+    "validation:begin": "node scripts/validation_resources.mjs begin",
+    "validation:check": "node scripts/validation_resources.mjs check",
     "build": "pnpm --filter @raven-zero/codex-adapter build:native && tsc -b",
     "test": "pnpm build && node --test --test-timeout=60000 packages/codex-adapter/dist/test/*.test.js"
   },

@@ -1,6 +1,6 @@
 # 首版实施任务图
 
-2026-10-07 完成独立交付工作区的边界决策与最小真实原型，再按可运行的行为切片拆分实现。主任务为 [Issue #2](https://github.com/Vamdawn/raven-zero/issues/2)；2026-10-08 已开始实现 #1 的内部隔离模块；其余业务切片按下表推进。
+2026-10-07 完成独立交付工作区的边界决策与最小真实原型，再按可运行的行为切片拆分实现。主任务为 [Issue #2](https://github.com/Vamdawn/raven-zero/issues/2)；2026-10-08 #1 的内部隔离模块与 macOS 验收已完成，通过 [PR #10](https://github.com/Vamdawn/raven-zero/pull/10) 合入 main，机制与限制见[验收记录](../research/macos-process-boundary.md)。下一业务切片为 #3。
 
 依据：[首版规格](v1-spec.md)、[技术栈](technology-stack.md)、[ADR 0020](../adr/0020-protected-delivery-workspace.md)和[交付隔离契约](delivery-workspace-isolation.md)。原型固定来源为 [`edbd170`](https://github.com/Vamdawn/raven-zero/tree/edbd170208dc19f306bcf8bbbcf0d461596a9021/prototypes/delivery_isolation)，不合并 Python/HTML 到生产代码。
 
