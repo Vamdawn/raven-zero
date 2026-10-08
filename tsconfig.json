@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{"path": "packages/codex-adapter"}]
+  "references": [{"path": "packages/codex-adapter"}, {"path": "packages/contracts"}, {"path": "packages/local-runner"}]
 }
