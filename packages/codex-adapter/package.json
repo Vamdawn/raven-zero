@@ -1,0 +1,11 @@
+{
+  "name": "@raven-zero/codex-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": "24.x"},
+  "exports": {".": {"types": "./dist/src/index.d.ts", "default": "./dist/src/index.js"}},
+  "scripts": {"build:native": "node scripts/build_native.mjs", "generate:protocol": "node scripts/generate_protocol.mjs"},
+  "dependencies": {"ws": "8.22.0", "zod": "4.6.5"},
+  "devDependencies": {"@types/ws": "8.18.2"}
+}

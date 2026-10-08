@@ -1,0 +1,12 @@
+{
+  "name": "raven-zero",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.9",
+  "engines": {"node": "24.x"},
+  "scripts": {
+    "build": "pnpm --filter @raven-zero/codex-adapter build:native && tsc -b",
+    "test": "pnpm build && node --test --test-timeout=60000 packages/codex-adapter/dist/test/*.test.js"
+  },
+  "devDependencies": {"typescript": "7.0.2", "@types/node": "24.19.1"}
+}
