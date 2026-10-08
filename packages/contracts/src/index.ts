@@ -1,5 +1,6 @@
 import {z} from 'zod';
 
+export const jsonValueSchema = z.json();
 const durationSchema = z.number().int().positive().max(2_147_483_647);
 const commandSchema = z.strictObject({
   executable: z.string().min(1), args: z.array(z.string()),
@@ -16,7 +17,7 @@ export const taskSchema = z.strictObject({
     z.strictObject({kind: z.literal('file'), source: z.string().min(1), destination: z.string().min(1)}),
     z.strictObject({kind: z.literal('command'), command: commandSchema}),
   ])),
-  delivery: z.strictObject({component: z.string().min(1), parameters: z.record(z.string(), z.json())}).optional(),
+  delivery: z.strictObject({component: z.string().min(1), parameters: z.record(z.string(), jsonValueSchema)}).optional(),
   checks: z.strictObject({before: z.array(checkSchema), after: z.array(checkSchema)}),
   artifacts: z.array(z.string().min(1)),
   timeoutMs: durationSchema.optional(),
@@ -36,7 +37,7 @@ export const sessionSchema = z.strictObject({id: z.string().min(1), workspace: z
 export const agentObservationSchema = z.discriminatedUnion('status', [
   z.strictObject({status: z.literal('working')}),
   z.strictObject({status: z.literal('waiting_for_input'), reason: z.string().min(1)}),
-  z.strictObject({status: z.literal('completion_candidate'), output: z.json()}),
+  z.strictObject({status: z.literal('completion_candidate'), output: jsonValueSchema}),
 ]);
 export const commandResultSchema = z.strictObject({
   status: z.enum(['exited', 'timed_out', 'cancelled', 'pending_verification']),
@@ -61,9 +62,9 @@ export const fileArtifactSchema = z.strictObject({
 });
 export const taskResultSchema = z.strictObject({
   runId: z.string().min(1), taskId: z.string().min(1), version: z.number().int().positive(),
-  status: z.enum(['succeeded', 'failed', 'cancelled', 'expired']), output: z.json(),
+  status: z.enum(['succeeded', 'failed', 'cancelled', 'expired']), output: jsonValueSchema,
   checks: z.array(checkResultSchema), artifacts: z.array(fileArtifactSchema),
-  delivery: z.json().optional(), reason: z.string().optional(),
+  delivery: jsonValueSchema.optional(), reason: z.string().optional(),
 });
 export const taskRunSchema = z.strictObject({
   id: z.string().min(1), task: taskSchema, root: z.string().min(1), workspace: z.string().min(1),
@@ -72,9 +73,9 @@ export const taskRunSchema = z.strictObject({
   history: z.array(runStatusSchema), startedAt: z.number().int().nonnegative(),
   deadlineAt: z.number().int().nonnegative().optional(), session: sessionSchema.optional(),
   stopReason: z.enum(['completion', 'cancelled', 'expired', 'failure']).optional(),
-  reason: z.string().optional(), output: z.json(),
+  reason: z.string().optional(), output: jsonValueSchema,
   publications: z.array(publicationSchema), checks: z.array(checkResultSchema),
-  results: z.array(taskResultSchema), delivery: z.json().optional(),
+  results: z.array(taskResultSchema), delivery: jsonValueSchema.optional(),
 });
 
 export type Task = z.infer<typeof taskSchema>;
@@ -89,7 +90,7 @@ export type CheckResult = z.infer<typeof checkResultSchema>;
 export type Publication = z.infer<typeof publicationSchema>;
 export type FileArtifact = z.infer<typeof fileArtifactSchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
-export type JsonValue = z.infer<ReturnType<typeof z.json>>;
+export type JsonValue = z.infer<typeof jsonValueSchema>;
 
 /** JSON-only definitions; Zod's default throws for unrepresentable types. */
 export function contractJsonSchemas(): Record<'task' | 'workflow' | 'taskRun' | 'taskResult', z.core.JSONSchema.JSONSchema> {

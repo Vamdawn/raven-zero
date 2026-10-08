@@ -193,3 +193,18 @@ test('取消结果保存失败时保留待核对，不反复请求停止与保�
     assert.match(pending.reason ?? '', /结果存储不可用/);
   } finally { await rm(root, {recursive: true, force: true}); }
 });
+
+test('交付组件返回非法 JSON 时仍可读取并保存待核对状态', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'raven-delivery-json-'));
+  try {
+    const runner = await LocalTaskRunner.create({...task, delivery: {component: 'fixture', parameters: {}}}, {
+      root, files: new NodeFileExecution(), agent: reportAgent(),
+      delivery: {name: 'fixture', async deliver() { return 1n; }},
+    });
+    const pending = await runner.execute();
+    assert.equal(pending.status, 'pending_verification');
+    assert.equal(pending.delivery, undefined);
+    assert.deepEqual(runner.snapshot(), pending);
+    assert.deepEqual(JSON.parse(await readFile(join(pending.root, 'run.json'), 'utf8')), pending);
+  } finally { await rm(root, {recursive: true, force: true}); }
+});

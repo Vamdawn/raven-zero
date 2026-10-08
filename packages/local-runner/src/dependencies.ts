@@ -44,7 +44,7 @@ export interface DeliveryComponent {
   readonly name: string;
   /** Runs only after a verified publication and successful before checks. */
   deliver(publication: Publication, parameters: Readonly<Record<string, JsonValue>>,
-    signal: AbortSignal): Promise<JsonValue>;
+    signal: AbortSignal): Promise<unknown>;
 }
 
 export interface RunnerOptions {

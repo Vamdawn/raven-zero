@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {agentObservationSchema, commandResultSchema, fileArtifactSchema, publicationSchema, sessionSchema,
+import {agentObservationSchema, commandResultSchema, fileArtifactSchema, jsonValueSchema, publicationSchema, sessionSchema,
   taskRunSchema, taskSchema, taskResultSchema} from '@raven-zero/contracts';
 import type {AgentSession, CheckResult, FileArtifact, Publication, RunStatus, TaskResult, TaskRun} from '@raven-zero/contracts';
 import type {RunnerOptions} from './dependencies.js';
@@ -204,7 +204,8 @@ export class LocalTaskRunner {
           const publication = await this.publication();
           if (this.run.task.delivery) {
             if (!this.options.delivery) throw new Error('Delivery component is unavailable');
-            this.run.delivery = await this.options.delivery.deliver(publication, this.run.task.delivery.parameters, this.controller.signal);
+            const evidence = await this.options.delivery.deliver(publication, this.run.task.delivery.parameters, this.controller.signal);
+            this.run.delivery = jsonValueSchema.parse(evidence);
           }
           await this.move('checking_after'); break;
         }
