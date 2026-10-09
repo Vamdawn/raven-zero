@@ -113,7 +113,8 @@ Git 对象和引用启用 [fsync](https://git-scm.com/docs/git-config#Documentat
 推送确认丢失时先核对远端，不重复提交或推送。已有提交记录与引用不一致时保留待核对。
 如果执行器已丢失，可将保存的 `run.json` 交给
 `LocalTaskRunner.restoreDelivery(record, options)`，它先核对同样的边界，再返回可继续的执行器。
-该入口仅恢复 `delivering` 或从交付阶段进入的 `pending_verification`；
+该入口恢复 `delivering` 或从交付阶段进入的 `pending_verification`，以及刚进入
+`checking_after`、尚无后置检查记录的情况；最后一种情况先重新核对交付，再执行后置检查。
 不重跑 Agent、初始化或已通过的本版检查。`resume()` 则明确继续 Agent 工作，
 生成新成果版本并重新检查。
 

@@ -91,9 +91,12 @@ function verifyLinks(entries: Entries): void {
 /** Captures only after the caller has closed native input and confirmed its
  * execution boundary. Source reads are fd-relative/O_NOFOLLOW in native code.
  * The stage is never valid delivery input. Failure leaves it for diagnosis.
+ * An optional checkpoint is awaited after staging is durable and after the
+ * final publication barrier. Rejection retains the corresponding bytes.
  */
 export async function publish(source: string, delivery: string,
-  identity: Readonly<{run: string; thread: string; generation: number}>): Promise<Publication> {
+  identity: Readonly<{run: string; thread: string; generation: number}>,
+  checkpoint?: (phase: 'staged' | 'published') => Promise<void>): Promise<Publication> {
   const parsed = manifestSchema.omit({entries: true}).parse({...identity, version: 1});
   delivery = await realpath(delivery);
   const destination = join(delivery, `v${parsed.generation}`);
@@ -106,7 +109,9 @@ export async function publish(source: string, delivery: string,
   await writeFile(join(stage, MARKER), JSON.stringify(manifest), {flag: 'wx', mode: 0o600});
   await sync(join(stage, MARKER));
   await sync(stage);
+  await checkpoint?.('staged');
   await command(BOUNDARY, ['publish', stage, destination, delivery]);
+  await checkpoint?.('published');
   return {directory: destination, manifest};
 }
 

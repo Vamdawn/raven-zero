@@ -5,6 +5,7 @@ import {mkdtemp, mkdir, readFile, writeFile, rm, lstat, chmod} from 'node:fs/pro
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {GitBranchDelivery, LocalTaskRunner, NodeFileExecution, SimulatedAgent} from '@raven-zero/local-runner';
+import {taskRunSchema} from '@raven-zero/contracts';
 import type {Command, CommandResult, TaskRun} from '@raven-zero/contracts';
 
 const git = '/Library/Developer/CommandLineTools/usr/bin/git';
@@ -121,6 +122,105 @@ test('推送成功后的阶段记录保存失败仍可恢复同版，不重跑 A
     assert.equal(command(f.root, ['--git-dir', f.remote, 'rev-parse', `refs/heads/raven/${pending.id}`]), commit);
   } finally { await rm(f.root, {recursive: true, force: true}); }
 });
+
+// Interrupt the storage/command boundary without allowing the catch path to
+// replace the last durable record. Restoration must use those retained bytes.
+for (const effect of ['commit', 'checkpoint', 'push', 'transition'] as const) {
+  for (const timing of ['before', 'after'] as const) {
+    test(`恢复故障矩阵：${effect} ${timing} 中断后从磁盘恢复同版，再继续下一版`, async () => {
+      const f = await fixture();
+      class InterruptedFiles extends NodeFileExecution {
+        stopped = false;
+        armed = true;
+        commits = 0;
+        pushes = 0;
+        interrupt(): never {
+          this.stopped = true;
+          throw new Error('模拟执行器中断');
+        }
+        override async command(input: Command, workspace: string, signal: AbortSignal,
+          environment?: Readonly<Record<string, string | undefined>>): Promise<CommandResult> {
+          const target = input.args.includes(effect) && (effect === 'commit' || effect === 'push');
+          if (this.armed && target && timing === 'before') this.interrupt();
+          const result = await super.command(input, workspace, signal, environment);
+          if (result.status === 'exited' && result.exitCode === 0) {
+            if (input.args.includes('commit')) this.commits++;
+            if (input.args.includes('push')) this.pushes++;
+          }
+          if (this.armed && target && timing === 'after') this.interrupt();
+          return result;
+        }
+        override async saveRun(run: TaskRun): Promise<void> {
+          if (this.stopped) throw new Error('模拟记录存储不可用');
+          const target = effect === 'transition' ? run.status === 'checking_after' :
+            effect === 'checkpoint' && run.status === 'delivering' && run.delivery !== undefined;
+          if (this.armed && target && timing === 'before') this.interrupt();
+          await super.saveRun(run);
+          if (this.armed && target && timing === 'after') this.interrupt();
+        }
+      }
+      try {
+        const files = new InterruptedFiles();
+        let observations = 0;
+        const agent = new SimulatedAgent(async ({session, version}) => {
+          observations++;
+          await writeFile(join(session.workspace, 'code.txt'), `第${version}版`);
+          return {status: 'completion_candidate', output: null};
+        });
+        const root = join(f.root, 'runs');
+        const runner = await LocalTaskRunner.create({...f.task,
+          checks: {...f.task.checks, after: [{kind: 'file', path: 'code.txt'}]}},
+        {root, files, delivery: new GitBranchDelivery(files), agent});
+        await assert.rejects(runner.execute(), /记录存储不可用/);
+        assert.equal(files.stopped, true);
+        const interrupted = runner.snapshot();
+        const metadata = join(interrupted.root, 'git');
+        const branch = `refs/heads/raven/${interrupted.id}`;
+        const retained = taskRunSchema.parse(JSON.parse(await readFile(join(interrupted.root, 'run.json'), 'utf8')));
+        assert.equal(retained.status, effect === 'transition' && timing === 'after' ? 'checking_after' : 'delivering');
+        assert.equal(retained.version, 1);
+        const originalCommit = command(f.root, ['--git-dir', metadata, 'rev-parse', 'refs/raven/versions/1']);
+        const originalRemote = command(f.root, ['--git-dir', f.remote, 'for-each-ref', '--format=%(objectname)', branch]);
+        assert.equal(originalRemote !== '', files.pushes === 1);
+        const committed = files.commits === 1;
+        const pushed = files.pushes === 1;
+        // Ownership is still held by the simulated adapters. Only the Runner
+        // and delivery component are recreated from the last durable record.
+        files.armed = false;
+        files.stopped = false;
+        const restored = await LocalTaskRunner.restoreDelivery(retained,
+          {root, files, delivery: new GitBranchDelivery(files), agent});
+        const recovered = await restored.execute();
+        assert.equal(recovered.status, 'succeeded', recovered.reason);
+        assert.equal(recovered.version, 1);
+        assert.equal(observations, 1);
+        assert.deepEqual(recovered.session, interrupted.session);
+        assert.deepEqual(recovered.publications, interrupted.publications);
+        assert.equal(recovered.checks.filter(check => check.stage === 'after').length, 1);
+        assert.equal(files.commits, 1);
+        assert.equal(files.pushes, 1);
+        const commit = command(f.root, ['--git-dir', f.remote, 'rev-parse', branch]);
+        if (committed) assert.equal(commit, originalCommit);
+        if (pushed) assert.equal(commit, originalRemote);
+        assert.equal(command(f.root, ['--git-dir', f.remote, 'rev-list', '--count', commit]), '2');
+        assert.equal(command(f.root, ['--git-dir', f.remote, 'show', `${commit}:code.txt`]), '第1版');
+        const savedResult = await readFile(join(recovered.root, 'results', 'v1.json'), 'utf8');
+        await restored.resume();
+        const second = await restored.execute();
+        assert.equal(second.status, 'succeeded', second.reason);
+        assert.equal(second.version, 2);
+        assert.equal(observations, 2);
+        assert.equal(files.commits, 2);
+        assert.equal(files.pushes, 2);
+        assert.deepEqual(second.session, interrupted.session);
+        assert.equal(command(f.root, ['--git-dir', f.remote, 'rev-parse', `${branch}^`]), commit);
+        assert.equal(command(f.root, ['--git-dir', f.remote, 'show', `${commit}:code.txt`]), '第1版');
+        assert.equal(command(f.root, ['--git-dir', f.remote, 'show', `${branch}:code.txt`]), '第2版');
+        assert.equal(await readFile(join(second.root, 'results', 'v1.json'), 'utf8'), savedResult);
+      } finally { await rm(f.root, {recursive: true, force: true}); }
+    });
+  }
+}
 
 test('已记录提交身份丢失时保留待核对，不重新生成提交或推送', async () => {
   const f = await fixture();

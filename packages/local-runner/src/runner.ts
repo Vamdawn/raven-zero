@@ -94,7 +94,9 @@ export class LocalTaskRunner {
   /** Continues delivery of the retained version without reopening Agent input. */
   async recoverDelivery(): Promise<TaskRun> {
     return this.exclusive(async () => {
-      if (this.run.status !== 'delivering' &&
+      const lostTransition = this.run.status === 'checking_after' &&
+        !this.run.checks.some(check => check.stage === 'after');
+      if (this.run.status !== 'delivering' && !lostTransition &&
         !(this.run.status === 'pending_verification' && this.run.pendingFrom === 'delivering')) {
         throw new Error(`Cannot recover delivery from ${this.run.status}`);
       }
