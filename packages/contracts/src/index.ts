@@ -1,6 +1,16 @@
 import {z} from 'zod';
 
 export const jsonValueSchema = z.json();
+export const gitBranchParametersSchema = z.strictObject({
+  remote: z.string().regex(/^[^-\0\r\n][^\0\r\n]*$/),
+  baseRef: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/),
+});
+export const gitBranchEvidenceSchema = z.strictObject({
+  remote: z.string().min(1), branch: z.string().min(1),
+  commit: z.string().regex(/^([a-f0-9]{40}|[a-f0-9]{64})$/),
+  version: z.number().int().positive(), noChanges: z.boolean(),
+  status: z.enum(['committed', 'pushed', 'conflict', 'failed']),
+});
 const durationSchema = z.number().int().positive().max(2_147_483_647);
 const commandSchema = z.strictObject({
   executable: z.string().min(1), args: z.array(z.string()),
@@ -74,6 +84,7 @@ export const taskRunSchema = z.strictObject({
   deadlineAt: z.number().int().nonnegative().optional(), session: sessionSchema.optional(),
   stopReason: z.enum(['completion', 'cancelled', 'expired', 'failure']).optional(),
   reason: z.string().optional(), output: jsonValueSchema,
+  pendingFrom: runStatusSchema.optional(),
   publications: z.array(publicationSchema), checks: z.array(checkResultSchema),
   results: z.array(taskResultSchema), delivery: jsonValueSchema.optional(),
 });

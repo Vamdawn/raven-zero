@@ -114,10 +114,12 @@ export class NodeFileExecution implements FileExecution {
     await writeFile(target, await readFile(source), {flag: 'wx'});
   }
 
-  async command(command: Command, workspace: string, signal: AbortSignal): Promise<CommandResult> {
+  async command(command: Command, workspace: string, signal: AbortSignal,
+    environment?: Readonly<Record<string, string | undefined>>): Promise<CommandResult> {
     if (signal.aborted) return {status: 'cancelled', exitCode: null, stdout: '', stderr: ''};
     return new Promise((resolveResult, reject) => {
-      const child = spawn(command.executable, command.args, {cwd: workspace, detached: true, stdio: ['ignore', 'pipe', 'pipe']});
+      const child = spawn(command.executable, command.args, {cwd: workspace, detached: true,
+        env: {...process.env, ...environment}, stdio: ['ignore', 'pipe', 'pipe']});
       const execution: CommandExecution = {workspace, closed: false, ...(child.pid === undefined ? {} : {pid: child.pid})};
       this.commands.add(execution);
       let stdout = ''; let stderr = '';

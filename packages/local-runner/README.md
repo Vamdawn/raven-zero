@@ -1,10 +1,10 @@
-# 本地报告任务执行
+# 本地报告与代码任务执行
 
-Issue #3 的可嵌入切片：JSON 校验、独立任务工作区、模拟 Agent、成果版本、命令/文件检查与本地结果保存。无需启动服务端。
+Issue #3 / #4 的可嵌入切片：JSON 校验、独立任务工作区、模拟 Agent、成果版本、命令/文件检查、本地结果保存与可选 Git 分支交付。无需启动服务端。
 
 本包的默认文件执行与 Agent 适配器仅提供 **simulated** 隔离，用于受控夹具。独立目录和版本复制不保护任意真实进程；真实 Codex 的外层写入边界由独立适配器建立并在后续切片接入。边界未建立、停止未知、发布不完整或内容核验失败时，保留 `pending_verification`，不运行检查或交付。
 
-任务的命令使用可执行文件与参数数组，不隐式启动 shell。任务未选择交付组件时不调用 Git；本切片不实现 Git 交付。
+任务的命令使用可执行文件与参数数组，不隐式启动 shell。任务未选择交付组件时不调用 Git。
 
 ## 嵌入入口
 
@@ -74,6 +74,54 @@ created → initializing → working ⇄ waiting_for_input
 
 执行记录和成果版本由宿主管理生命周期，本包不自动删除失败现场。显式恢复须核对原会话身份、原工作区与既有版本，下一版重新检查；检查失败不会自动重跑 Agent。进程重启后的持久状态核对和 SQLite 属于后续切片。
 
+## Git 分支交付
+
+代码任务与报告任务使用同一执行入口。注册 `new GitBranchDelivery(files)`，任务声明：
+
+```ts
+delivery: {
+  component: 'git-branch',
+  parameters: {remote: '/absolute/repository.git', baseRef: 'refs/heads/main'},
+}
+```
+
+`remote` 可使用 Git 远端 URL 或绝对本地路径；`baseRef` 为分支、完整引用或提交 ID，
+不接受 refspec 映射或修订表达式。参数拒绝未知字段。Git 组件在任务初始化步骤和
+Agent 启动前获取基准并检出到 `work/`；其他初始化步骤可以继续准备任务输入。
+
+客户端私有元数据在 `root/<run-id>/git/`，与 `work/` 和成果内容分开。
+从空模板初始化并获取对象，不复制源配置、hooks、alternates 或 `.git` 指针；
+工作区不含指向私有元数据的 `.git`。本地 Git 工作禁用系统／全局配置和 hooks，
+按成果清单直接写入文件对象及执行位，不调用 clean/smudge filter。
+网络命令与作者身份读取使用客户端已有 Git 配置和凭证；不调用平台 API。
+由 `FileExecution.command` 管理所有 Git 进程、输出、期限和停止确认，
+每条命令期限 30 秒，并受任务总期限及取消信号约束。
+该入口的可选环境参数用于清除 Git 目录、索引和配置注入变量；替代实现必须兑现环境覆盖。
+
+稳定远端分支为 `raven/<run-id>`；私有 `refs/raven/versions/N` 保存每版提交，
+下一版沿用最近已有提交的版本为父提交，远端为该提交链祖先时允许正常快进。
+交付证据包含 `remote`、`branch`、`commit`、
+`version`、`noChanges` 和 `status`，提交身份在推送前保存。
+无改动复用父提交，不创建空提交，仍检查并交付分支；是否接受由任务完成检查决定。
+前置检查失败不提交或推送，后置检查失败保留推送证据。远端冲突保存失败结果，不强推。
+推送后查询远端确认准确提交；查询或停止无法确认时保留待核对。
+Git 对象和引用启用 [fsync](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsync)，
+未进行物理断电验收。
+
+交付中断后，调用 `recoverDelivery()` 核对目录、原会话、已发布内容及本版前置检查，
+再 `execute()` 继续同版交付。提交后尚未保存记录时，从私有版本引用找回原提交；
+推送确认丢失时先核对远端，不重复提交或推送。已有提交记录与引用不一致时保留待核对。
+如果执行器已丢失，可将保存的 `run.json` 交给
+`LocalTaskRunner.restoreDelivery(record, options)`，它先核对同样的边界，再返回可继续的执行器。
+该入口恢复 `delivering` 或从交付阶段进入的 `pending_verification`，以及刚进入
+`checking_after`、尚无后置检查记录的情况；最后一种情况先重新核对交付，再执行后置检查。
+不重跑 Agent、初始化或已通过的本版检查。`resume()` 则明确继续 Agent 工作，
+生成新成果版本并重新检查。
+
+默认模拟依赖只能核对当前进程中登记的原目录和会话；进程重启后缺少归属证据会保持
+待核对。SQLite、跨进程 admission 恢复及真实 Codex 全链路由后续切片接入，
+本包未开放未验收的真实 Git 写入边界。
+
 ## 验证
 
 ```sh
@@ -82,4 +130,4 @@ node --test packages/contracts/dist/test/*.test.js packages/local-runner/dist/te
 pnpm check
 ```
 
-验证使用真实临时文件和 Node 命令，不创建真实 Codex 会话、managed worktree 或数据库。
+验证使用真实临时文件、Node 命令和 Git bare remote，不创建真实 Codex 会话、managed worktree 或数据库。
