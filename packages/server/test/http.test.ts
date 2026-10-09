@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import {after, before, test} from 'node:test';
 import Fastify from 'fastify';
 import {createMysqlStore, createServerApp, migrateMysql, ravenRoutes, TaskServer} from '@raven-zero/server';
-import {serverTaskSchema} from '@raven-zero/contracts';
+import {claimResponseSchema, clientTokenSchema, serverTaskSchema} from '@raven-zero/contracts';
 import {startMysql} from './mysql_fixture.js';
 import {setTimeout} from 'node:timers/promises';
+import {createConnection} from 'mysql2/promise';
+import type {RowDataPacket} from 'mysql2/promise';
+
+interface ProcessRow extends RowDataPacket {Info: string | null;}
 
 let mysql: Awaited<ReturnType<typeof startMysql>>;
 before(async () => { mysql = await startMysql(); });
@@ -91,4 +95,44 @@ test('独立组装拒绝未迁移数据库；HTTP 关闭及时中止长轮询并
     assert.equal((await waiting).statusCode, 200);
     assert.ok(Date.now() - startedAt < 2000, 'close must abort the 30s poll');
   } finally { await app.close(); }
+});
+
+test('关闭等待正在执行的领取事务结束，再释放独立连接池', async () => {
+  const config = {socketPath: mysql.socketPath, user: 'root', database: await mysql.database()};
+  await migrateMysql(config);
+  const app = await createServerApp(config, managementToken);
+  try {
+    const blocker = await createConnection(config);
+    try {
+      const registration = await app.inject({method: 'POST', url: '/raven/v1/clients', headers: admin,
+        payload: {id: 'blocked-client', capabilities: {agents: ['simulated'], deliveryComponents: [], slots: 1}}});
+      const client = clientTokenSchema.parse(registration.json());
+      // An external database lock holds the real transaction at an observable I/O boundary.
+      await blocker.query('LOCK TABLES raven_client WRITE');
+      const waiting = app.inject({method: 'POST', url: '/raven/v1/claim',
+        headers: {authorization: `Bearer ${client.token}`}, payload: {waitMs: 30_000}}).then(response => response);
+      const deadline = Date.now() + 3000;
+      for (;;) {
+        const [processes] = await blocker.query<ProcessRow[]>('SHOW FULL PROCESSLIST');
+        if (processes.some(row => row.Info?.includes('raven_client'))) break;
+        assert.ok(Date.now() < deadline, 'claim transaction must reach the database lock');
+        await setTimeout(10);
+      }
+      let closed = false;
+      const closing = app.close().then(() => { closed = true; });
+      await Promise.race([closing, setTimeout(1000)]);
+      const closedWhileTransactionBlocked = closed;
+      await blocker.query('UNLOCK TABLES');
+      await closing;
+      assert.equal(closedWhileTransactionBlocked, false);
+      const response = await waiting;
+      assert.equal(response.statusCode, 200);
+      assert.deepEqual(claimResponseSchema.parse(response.json()), {assignment: null});
+    } finally {
+      try { await blocker.query('UNLOCK TABLES'); }
+      finally { await blocker.end(); }
+    }
+  } finally {
+    await app.close();
+  }
 });

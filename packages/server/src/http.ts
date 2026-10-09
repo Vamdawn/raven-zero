@@ -81,12 +81,19 @@ export const ravenRoutes: FastifyPluginAsync<RavenHttpOptions> = async (instance
   app.post('/heartbeat', {onRequest: client, schema: {body: clientCapabilitiesSchema, querystring: EMPTY_SCHEMA,
     response: {200: heartbeatSchema, ...ERRORS}, security: CLIENT_SECURITY}},
   async request => server.heartbeat(bearer(request), request.body));
-  const waiters = new Set<AbortController>();
-  instance.addHook('preClose', async () => { for (const controller of waiters) controller.abort(); });
+  const waiters = new Map<AbortController, Promise<void>>();
+  let closing = false;
+  instance.addHook('preClose', async () => {
+    closing = true;
+    for (const controller of waiters.keys()) controller.abort();
+    await Promise.all(waiters.values());
+  });
   app.post('/claim', {onRequest: client, schema: {body: claimSchema, querystring: EMPTY_SCHEMA,
     response: {200: claimResponseSchema, ...ERRORS}, security: CLIENT_SECURITY}}, async (request, reply) => {
+    if (closing) return {assignment: null};
     const controller = new AbortController();
-    waiters.add(controller);
+    const finished = Promise.withResolvers<void>();
+    waiters.set(controller, finished.promise);
     const disconnect = () => { if (!reply.raw.writableFinished) controller.abort(); };
     reply.raw.once('close', disconnect);
     try { return {assignment: await server.claim(bearer(request), request.body.waitMs, controller.signal)}; }
@@ -94,7 +101,7 @@ export const ravenRoutes: FastifyPluginAsync<RavenHttpOptions> = async (instance
       if (controller.signal.aborted && error instanceof Error && error.name === 'AbortError') return {assignment: null};
       throw error;
     }
-    finally { waiters.delete(controller); reply.raw.off('close', disconnect); }
+    finally { waiters.delete(controller); reply.raw.off('close', disconnect); finished.resolve(); }
   });
   app.post('/runs/:runId/progress', {onRequest: client, schema: {params: z.strictObject({runId: z.uuid()}),
     body: progressSchema, querystring: EMPTY_SCHEMA, response: {200: serverTaskSchema, ...ERRORS}, security: CLIENT_SECURITY}},

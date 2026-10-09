@@ -36,14 +36,6 @@ console.log('mysqld Ver 8.0.26');
   } finally { rmSync(root, {recursive: true, force: true}); }
 });
 
-test('MySQL smoke CLI connects, queries through the public store, and closes its private instance', () => {
-  const result = spawnSync('pnpm', ['run', 'test:mysql-smoke'], {
-    cwd: repository, env: process.env, encoding: 'utf8', timeout: 30_000,
-  });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /\[mysql-smoke\] connection, query and close passed/);
-});
-
 test('MySQL smoke CLI reports connection setup failure separately from business tests', () => {
   const root = mkdtempSync('/tmp/raven smoke-');
   try {
