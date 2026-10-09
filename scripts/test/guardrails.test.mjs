@@ -37,7 +37,7 @@ test('hook installation preserves the previous hook, is repeatable, and failed c
     const original = '#!/bin/sh\nprintf "previous\\n" >> record\n';
     const hook = join(root, '.git/hooks/pre-commit');
     writeFileSync(hook, original, {mode: 0o755});
-    writeFileSync(join(root, 'bin/pnpm'), '#!/bin/sh\nprintf "%s\\n" "$*" >> record\nexit "${CHECK_EXIT:-0}"\n', {mode: 0o755});
+    writeFileSync(join(root, 'bin/pnpm'), '#!/bin/sh\nprintf "%s\\n" "$*" >> record\n[ "$1" != "${CHECK_FAIL_COMMAND:-}" ] || exit 23\nexit "${CHECK_EXIT:-0}"\n', {mode: 0o755});
     const env = {...environment, PATH: `${join(root, 'bin')}:${environment.PATH}`};
     assert.equal(run(root, 'install_hooks.mjs').status, 0);
     const installed = readFileSync(hook, 'utf8');
@@ -47,7 +47,7 @@ test('hook installation preserves the previous hook, is repeatable, and failed c
     execFileSync(git, ['add', '.'], {cwd: root, env});
     const commit = spawnSync(git, ['commit', '--quiet', '-m', 'checks pass'], {cwd: root, env, encoding: 'utf8'});
     assert.equal(commit.status, 0, commit.stderr);
-    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ntest\ntest:tools\n');
+    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ndoctor\ntest:mysql-smoke\ncheck:mysql-hooks\ntest\ntest:tools\n');
     const head = execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'});
     writeFileSync(join(root, 'change'), 'next');
     execFileSync(git, ['add', '.'], {cwd: root, env});
@@ -56,7 +56,17 @@ test('hook installation preserves the previous hook, is repeatable, and failed c
       {cwd: root, env: {...env, CHECK_EXIT: '23'}, encoding: 'utf8'});
     assert.notEqual(failed.status, 0);
     assert.equal(execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'}), head);
-    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ntest\n');
+    assert.equal(readFileSync(join(root, 'record'), 'utf8'), 'previous\ndoctor\n');
+    for (const command of ['test:mysql-smoke', 'check:mysql-hooks', 'test', 'test:tools']) {
+      writeFileSync(join(root, 'record'), '');
+      const rejected = spawnSync(git, ['commit', '--quiet', '-m', 'validation phase fails'],
+        {cwd: root, env: {...env, CHECK_FAIL_COMMAND: command}, encoding: 'utf8'});
+      assert.notEqual(rejected.status, 0);
+      assert.equal(execFileSync(git, ['rev-parse', 'HEAD'], {cwd: root, env, encoding: 'utf8'}), head);
+      const commands = ['doctor', 'test:mysql-smoke', 'check:mysql-hooks', 'test', 'test:tools'];
+      assert.equal(readFileSync(join(root, 'record'), 'utf8'),
+        ['previous', ...commands.slice(0, commands.indexOf(command) + 1), ''].join('\n'));
+    }
     writeFileSync(join(root, 'change'), 'not staged');
     writeFileSync(join(root, 'record'), '');
     assert.notEqual(run(root, 'check.mjs', ['--staged'], env).status, 0);

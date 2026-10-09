@@ -16,6 +16,9 @@ if (staged) verifyStaged();
 const testedTree = staged ? execFileSync(git, ['write-tree'], {encoding: 'utf8'}) : undefined;
 execFileSync(git, ['diff', '--check'], {stdio: 'inherit'});
 execFileSync(git, ['diff', '--cached', '--check'], {stdio: 'inherit'});
+execFileSync('pnpm', ['doctor'], {stdio: 'inherit'});
+execFileSync('pnpm', ['test:mysql-smoke'], {stdio: 'inherit'});
+execFileSync('pnpm', ['check:mysql-hooks'], {stdio: 'inherit'});
 execFileSync('pnpm', ['test'], {stdio: 'inherit'});
 execFileSync('pnpm', ['test:tools'], {stdio: 'inherit'});
 if (staged) {

@@ -75,9 +75,14 @@ pnpm --filter @raven-zero/server start
 `pnpm test` 会启动独立、socket-only 的真实 MySQL 8.4，使用临时目录和临时数据库；不连接个人运行中的数据库。默认二进制为 `/opt/homebrew/opt/mysql@8.4/bin/mysqld`，可用 `RAVEN_MYSQLD` 指定；缺失或版本不是 8.4 会失败，不以 SQLite 或跳过测试替代验收。
 
 ```sh
+pnpm doctor
+pnpm test:mysql-smoke
 pnpm exec tsc -b packages/server
 node --test --test-concurrency=1 --test-timeout=60000 packages/server/dist/test/*.test.js
 ```
+
+先通过预检和公开存储 API 的连接／查询／关闭冒烟，再推进业务测试；失败分别带 `[environment]` / `[mysql-smoke]` 诊断。
+初始化失败的故障注入测试核对临时目录清理。完整提交检查的顺序及定向连接钩子规则见[验证入口](../../docs/agents/validation.md)。
 
 测试覆盖迁移、重启、能力/名额匹配、竞争、归属、重报与取消、HTTP 认证/严格契约/OpenAPI、长轮询及资源关闭。测试实例在确认退出后删除自身临时目录；不触及宿主表。结果 JSON 保留 Unicode、NULL 和精确数字字符串；DATETIME(3) 与连接时区统一 UTC，驱动返回日期字符串，COUNT 等大整数按字符串读取后以 BigInt 比较。本包不保存 DECIMAL 金额或任意 BIGINT 业务字段。
 
