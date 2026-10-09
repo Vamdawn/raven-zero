@@ -6,6 +6,9 @@
   "engines": {"node": "24.x"},
   "scripts": {
     "check": "node scripts/check.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "test:mysql-smoke": "tsc -b packages/server && node packages/server/dist/test/mysql_smoke.js",
+    "check:mysql-hooks": "node scripts/check_mysql_hooks.mjs",
     "hooks:install": "node scripts/install_hooks.mjs",
     "test:tools": "node --test --test-timeout=60000 scripts/test/*.test.mjs",
     "validation:begin": "node scripts/validation_resources.mjs begin",

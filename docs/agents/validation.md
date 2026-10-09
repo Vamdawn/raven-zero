@@ -6,6 +6,17 @@
 
 手动检查用 `pnpm check`；具体检查命令以根 package.json 为准。完整测试按文件串行运行，避免真实 Git 子进程与 launchd 夹具并行竞争启动窗口；断言和测试期限保持有效。提交时先暂存完整改动：钩子在检查前后拒绝未暂存的已跟踪改动及未忽略的新文件，并确认待提交树在检查期间未变化，使测试读取的内容与提交内容一致。失败会阻止提交。只暂存其中一部分时，先把其他改动移出工作树，完成提交后恢复。
 
+开始实现前先运行 `pnpm doctor`，通过后运行 `pnpm test:mysql-smoke`，再推进业务测试切片。
+前者只读核对 Node/pnpm、MySQL 8.4 可执行文件、macOS arm64 非 root GUI 用户、Command Line Tools 和 SDK；
+它不安装软件、不启动服务，原生 ABI 的精确平台范围仍由模块运行时校验。
+后者只编译服务端及其依赖，在私有 socket-only MySQL 上通过公开存储和核心 API 验证连接、查询、Unicode 往返及关闭。
+MySQL 路径使用服务端 README 说明的 `RAVEN_MYSQLD`。`[environment]` 与 `[mysql-smoke]` 失败先处理，再开始业务实现。
+
+`pnpm check` 顺序执行预检、MySQL 冒烟、`pnpm check:mysql-hooks`、完整业务测试及工具测试，任一步失败立即停止。
+定向静态检查在服务端导入 mysql2 回调驱动的文件中拒绝字面量 `connection` 事件钩子，初始化查询走 Kysely 等待的 `onCreateConnection`；
+它覆盖点号、字符串属性访问及常用监听别名，忽略注释和普通字符串，不替代通用 Promise 或动态表达式审查。
+工具测试覆盖这条规则及提交检查顺序；服务端故障注入测试以替代 mysqld 可执行文件验证初始化失败时保留错误并清理自有目录。
+
 完整检查依赖模块 README 中已验收的 macOS/arm64 版本、Node.js 24、Command Line Tools 和非 root GUI 用户。它运行本机临时 launchd/Seatbelt 行为测试，不调用真实模型、不创建 Codex 会话或 managed worktree。当前入口是本机提交检查；仓库没有云端 CI，通用 hosted runner 不作为本模块完整验收环境。
 
 本机系统 Git 可能被未确认的 Xcode 许可阻挡；脚本使用 Command Line Tools 的 Git，钩子只在自身进程树设置 DEVELOPER_DIR，不修改全局配置。
