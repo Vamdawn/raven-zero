@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {realpath} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {agentObservationSchema, commandResultSchema, fileArtifactSchema, jsonValueSchema, publicationSchema, sessionSchema,
-  taskRunSchema, taskSchema, taskResultSchema} from '@raven-zero/contracts';
+  taskRunSchema, taskSchema, taskResultSchema, serverResultSchema} from '@raven-zero/contracts';
 import type {AgentSession, CheckResult, FileArtifact, Publication, RunStatus, TaskResult, TaskRun} from '@raven-zero/contracts';
 import type {RunnerOptions} from './dependencies.js';
 import {DeliveryFailure} from './dependencies.js';
@@ -40,7 +40,7 @@ export class LocalTaskRunner {
     for (const step of task.initialization) if (step.kind === 'file') workspacePath('/workspace', step.destination);
     for (const check of [...task.checks.before, ...task.checks.after]) if (check.kind === 'file') workspacePath('/workspace', check.path);
     for (const path of task.artifacts) workspacePath('/workspace', path);
-    const id = randomUUID();
+    const id = options.runId === undefined ? randomUUID() : serverResultSchema.shape.runId.parse(options.runId);
     const workspace = await options.files.prepare(options.root, id);
     const startedAt = Date.now();
     const run = taskRunSchema.parse({id, task, ...workspace, version: 1, status: 'created', history: ['created'],
@@ -53,6 +53,76 @@ export class LocalTaskRunner {
   }
 
   snapshot(): TaskRun { return taskRunSchema.parse(this.run); }
+
+  /** Loads a retained record without replaying any external effect. Recovery or
+   * retry must be explicitly requested and verify the original dependencies.
+   */
+  static async restore(input: unknown, options: RunnerOptions): Promise<LocalTaskRunner> {
+    const run = taskRunSchema.parse(input);
+    if (run.task.agent.name !== options.agent.name ||
+      (run.task.delivery && run.task.delivery.component !== options.delivery?.name)) throw new Error('Retained capability is unavailable');
+    if (dirname(run.root) !== await realpath(options.root) || (run.session && run.session.workspace !== run.workspace)) {
+      throw new Error('Retained run/workspace identity mismatch');
+    }
+    return new LocalTaskRunner(run, options);
+  }
+
+  /** Explicitly continues the retained version. Stops and verifies the original
+   * session before reopening input; published work is never re-run by Agent.
+   */
+  async recover(): Promise<TaskRun> {
+    return this.exclusive(async () => {
+      const source = this.run.pendingFrom ?? this.run.status;
+      if (!['publishing', 'published', 'working', 'waiting_for_input'].includes(source)) {
+        return this.pending(`Interrupted ${source} requires verification before retry`);
+      }
+      try {
+        if (this.run.isolation !== 'simulated' || this.options.agent.isolation !== 'simulated' ||
+          this.options.files.isolation !== 'simulated' || !await this.options.files.verifyWorkspace(this.run)) {
+          return await this.pending('Original workspace or boundary could not be verified');
+        }
+        if (source === 'working' || source === 'waiting_for_input') {
+          await this.requestStop(this.run.stopReason ?? 'failure');
+          if (!await this.options.agent.confirmStop(this.session())) return await this.pending('Original Agent stop is unconfirmed');
+          await this.move('stop_confirmed');
+        }
+        if (!await this.options.agent.verify(this.session())) return await this.pending('Original session could not be verified');
+        for (const publication of this.run.publications) {
+          if (!await this.options.files.verify(publication)) return await this.pending('Previous publication changed');
+        }
+        if (source === 'working' || source === 'waiting_for_input') {
+          this.controller = new AbortController();
+          this.stopIntent = undefined;
+          delete this.run.reason;
+          delete this.run.stopReason;
+          delete this.run.pendingFrom;
+          await this.move('working');
+          await this.options.agent.resume(this.session());
+          return this.snapshot();
+        }
+        if (source === 'published') {
+          await this.publication();
+          this.run.status = 'published';
+          this.run.history.push('published');
+          delete this.run.reason;
+          delete this.run.pendingFrom;
+          await this.persist();
+          return this.snapshot();
+        }
+        if (!this.options.files.recoverPublication) return await this.pending('Publication recovery is unavailable');
+        const publication = await this.options.files.recoverPublication({...this.run, runId: this.run.id, sessionId: this.session().id});
+        if (publication) {
+          this.run.publications.push(publication);
+          this.run.status = 'published';
+        } else this.run.status = 'publishing';
+        this.run.history.push(this.run.status);
+        delete this.run.reason;
+        delete this.run.pendingFrom;
+        await this.persist();
+        return this.snapshot();
+      } catch (error) { return this.pending(error instanceof Error ? error.message : String(error)); }
+    });
+  }
 
   /** Loads retained delivery progress; dependencies must reverify their ownership. */
   static async restoreDelivery(input: unknown, options: RunnerOptions): Promise<LocalTaskRunner> {
@@ -70,15 +140,17 @@ export class LocalTaskRunner {
    * It can interrupt an active Agent observation or command via AbortSignal.
    */
   async cancel(): Promise<TaskRun> {
-    if (TERMINAL.includes(this.run.status)) throw new Error(`Cannot cancel ${this.run.status}`);
-    this.stopIntent = 'cancelled';
+    if (TERMINAL.includes(this.run.status) && this.run.status !== 'pending_verification') throw new Error(`Cannot cancel ${this.run.status}`);
+    this.stopIntent = this.run.stopReason === 'expired' ? 'expired' : 'cancelled';
     this.controller.abort();
     if (this.execution) await this.execution;
     else if (this.active) await this.active;
-    if (TERMINAL.includes(this.run.status)) return this.snapshot();
+    if (TERMINAL.includes(this.run.status) && this.run.status !== 'pending_verification') return this.snapshot();
     return this.exclusive(async () => {
-      if (this.run.status !== 'stop_requested') await this.requestStop('cancelled');
-      else { this.run.stopReason = 'cancelled'; await this.persist(); }
+      try {
+        if (this.run.status !== 'stop_requested') await this.requestStop(this.stopIntent ?? 'cancelled');
+        else { this.run.stopReason = this.stopIntent ?? 'cancelled'; await this.persist(); }
+      } catch (error) { return this.pending(error instanceof Error ? error.message : String(error)); }
       return this.snapshot();
     });
   }
@@ -94,7 +166,8 @@ export class LocalTaskRunner {
   /** Continues delivery of the retained version without reopening Agent input. */
   async recoverDelivery(): Promise<TaskRun> {
     return this.exclusive(async () => {
-      const lostTransition = this.run.status === 'checking_after' &&
+      const lostTransition = (this.run.status === 'checking_after' ||
+        (this.run.status === 'pending_verification' && this.run.pendingFrom === 'checking_after')) &&
         !this.run.checks.some(check => check.stage === 'after');
       if (this.run.status !== 'delivering' && !lostTransition &&
         !(this.run.status === 'pending_verification' && this.run.pendingFrom === 'delivering')) {
@@ -136,7 +209,8 @@ export class LocalTaskRunner {
         if (!await this.options.agent.confirmStop(this.session())) return await this.pending('Original Agent stop is unconfirmed');
         await this.move('stop_confirmed');
       }
-      if (this.run.isolation !== 'simulated' || !await this.options.agent.verify(this.session())) {
+      if (this.run.isolation !== 'simulated' || this.options.agent.isolation !== 'simulated' ||
+        this.options.files.isolation !== 'simulated' || !await this.options.agent.verify(this.session())) {
         return await this.pending('Original session/workspace or boundary could not be verified');
       }
       for (const publication of this.run.publications) {
@@ -241,6 +315,7 @@ export class LocalTaskRunner {
           await this.requestStop('completion'); break;
         case 'stop_requested':
           if (this.run.session && !await this.options.agent.confirmStop(this.session())) return await this.pending('Agent stop is unconfirmed');
+          if (!await this.options.files.verifyWorkspace(this.run)) return await this.pending('Workspace command stop is unconfirmed');
           await this.move('stop_confirmed'); break;
         case 'stop_confirmed': await this.move(this.run.stopReason === 'completion' ? 'publishing' : 'saving_result'); break;
         case 'publishing': {
@@ -350,7 +425,8 @@ export class LocalTaskRunner {
 
   private async publication(): Promise<Publication> {
     const publication = this.run.publications.find(item => item.version === this.run.version);
-    if (!publication || !await this.options.files.verify(publication)) throw new Error('Published version could not be verified');
+    if (!publication || publication.runId !== this.run.id || publication.sessionId !== this.session().id ||
+      !await this.options.files.verify(publication)) throw new Error('Published version could not be verified');
     return structuredClone(publication);
   }
 

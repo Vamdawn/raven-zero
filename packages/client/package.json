@@ -1,0 +1,13 @@
+{
+  "name": "@raven-zero/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": "24.x"},
+  "exports": {".": {"types": "./dist/src/index.d.ts", "default": "./dist/src/index.js"}},
+  "dependencies": {
+    "@raven-zero/contracts": "workspace:*",
+    "@raven-zero/local-runner": "workspace:*",
+    "zod": "4.6.5"
+  }
+}

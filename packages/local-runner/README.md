@@ -72,7 +72,13 @@ created → initializing → working ⇄ waiting_for_input
 不能替代真实执行范围监督。模拟 Agent 的取消可停止等待观察，仍运行的回调继续由适配器跟踪，
 直到结束前不会确认停止。传入依赖由宿主持有，本包不关闭宿主资源。
 
-执行记录和成果版本由宿主管理生命周期，本包不自动删除失败现场。显式恢复须核对原会话身份、原工作区与既有版本，下一版重新检查；检查失败不会自动重跑 Agent。进程重启后的持久状态核对和 SQLite 属于后续切片。
+执行记录和成果版本由宿主管理生命周期，本包不自动删除失败现场。显式恢复须核对原会话身份、原工作区与既有版本，下一版重新检查；检查失败不会自动重跑 Agent。SQLite 保存与客户端重建见[客户端](../../packages/client/README.md)。
+
+`LocalTaskRunner.restore(record, options)` 只加载记录，不重放外部效果。显式 `recover()`
+核对原会话及工作区后继续同版工作或已发布成果；发布确认丢失时通过文件执行的
+`recoverPublication` 核对真实清单与内容，不接纳 staging。初始化／检查中途无法证明
+效果时保持待核对，显式 `resume()` 仍须核验旧版才能开始下一版。
+HTTP 客户端可通过 `RunnerOptions.runId` 传入服务端的 UUID，目录准备前校验。
 
 ## Git 分支交付
 
@@ -119,7 +125,7 @@ Git 对象和引用启用 [fsync](https://git-scm.com/docs/git-config#Documentat
 生成新成果版本并重新检查。
 
 默认模拟依赖只能核对当前进程中登记的原目录和会话；进程重启后缺少归属证据会保持
-待核对。SQLite、跨进程 admission 恢复及真实 Codex 全链路由后续切片接入，
+待核对。SQLite 和管理程序重建已由客户端接入；跨进程 Agent／目录 admission 及真实 Codex 全链路由后续切片接入，
 本包未开放未验收的真实 Git 写入边界。
 
 ## 验证
