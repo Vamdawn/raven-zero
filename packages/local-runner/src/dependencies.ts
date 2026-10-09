@@ -31,7 +31,8 @@ export interface FileExecution {
   /** Checks retained directory identity and outstanding file/command work. */
   verifyWorkspace(workspace: RunWorkspace): Promise<boolean>;
   copyInput(source: string, workspace: string, destination: string): Promise<void>;
-  command(command: Command, workspace: string, signal: AbortSignal): Promise<CommandResult>;
+  command(command: Command, workspace: string, signal: AbortSignal,
+    environment?: Readonly<Record<string, string | undefined>>): Promise<CommandResult>;
   fileExists(workspace: string, path: string): Promise<boolean>;
   publish(request: PublicationRequest): Promise<Publication>;
   verify(publication: Publication): Promise<boolean>;
@@ -42,9 +43,24 @@ export interface FileExecution {
 
 export interface DeliveryComponent {
   readonly name: string;
+  /** Client-owned initialization, before task steps and Agent start. */
+  initialize?(workspace: RunWorkspace, parameters: Readonly<Record<string, JsonValue>>,
+    signal: AbortSignal): Promise<void>;
   /** Runs only after a verified publication and successful before checks. */
   deliver(publication: Publication, parameters: Readonly<Record<string, JsonValue>>,
-    signal: AbortSignal): Promise<unknown>;
+    signal: AbortSignal, context: DeliveryContext): Promise<unknown>;
+}
+
+export interface DeliveryContext {
+  readonly root: string;
+  readonly evidence?: JsonValue;
+  /** Saves evidence before the next external effect; errors must propagate. */
+  checkpoint(evidence: unknown): Promise<void>;
+}
+
+/** A verified delivery failure, with any already-created commit evidence. */
+export class DeliveryFailure extends Error {
+  constructor(message: string, readonly evidence: JsonValue) { super(message); }
 }
 
 export interface RunnerOptions {

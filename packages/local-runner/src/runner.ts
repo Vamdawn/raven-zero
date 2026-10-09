@@ -1,8 +1,11 @@
 import {randomUUID} from 'node:crypto';
+import {realpath} from 'node:fs/promises';
+import {dirname} from 'node:path';
 import {agentObservationSchema, commandResultSchema, fileArtifactSchema, jsonValueSchema, publicationSchema, sessionSchema,
   taskRunSchema, taskSchema, taskResultSchema} from '@raven-zero/contracts';
 import type {AgentSession, CheckResult, FileArtifact, Publication, RunStatus, TaskResult, TaskRun} from '@raven-zero/contracts';
 import type {RunnerOptions} from './dependencies.js';
+import {DeliveryFailure} from './dependencies.js';
 import {workspacePath} from './node_files.js';
 
 const NEXT: Partial<Record<RunStatus, readonly RunStatus[]>> = {
@@ -51,6 +54,17 @@ export class LocalTaskRunner {
 
   snapshot(): TaskRun { return taskRunSchema.parse(this.run); }
 
+  /** Loads retained delivery progress; dependencies must reverify their ownership. */
+  static async restoreDelivery(input: unknown, options: RunnerOptions): Promise<LocalTaskRunner> {
+    const run = taskRunSchema.parse(input);
+    if (run.task.agent.name !== options.agent.name || !run.task.delivery ||
+      run.task.delivery.component !== options.delivery?.name) throw new Error('Retained delivery capability is unavailable');
+    if (dirname(run.root) !== await realpath(options.root)) throw new Error('Retained run is outside the configured root');
+    const runner = new LocalTaskRunner(run, options);
+    await runner.recoverDelivery();
+    return runner;
+  }
+
   /** Requests cancellation and closes input. Caller must advance/execute to
    * obtain stop confirmation; cancellation never publishes a new version.
    * It can interrupt an active Agent observation or command via AbortSignal.
@@ -77,6 +91,38 @@ export class LocalTaskRunner {
     return this.exclusive(() => this.resumeOnce());
   }
 
+  /** Continues delivery of the retained version without reopening Agent input. */
+  async recoverDelivery(): Promise<TaskRun> {
+    return this.exclusive(async () => {
+      if (this.run.status !== 'delivering' &&
+        !(this.run.status === 'pending_verification' && this.run.pendingFrom === 'delivering')) {
+        throw new Error(`Cannot recover delivery from ${this.run.status}`);
+      }
+      try {
+        if (this.run.isolation !== 'simulated' || this.options.agent.isolation !== 'simulated' ||
+          this.options.files.isolation !== 'simulated' || !await this.options.files.verifyWorkspace(this.run) ||
+          !await this.options.agent.verify(this.session())) return await this.pending('Delivery boundary or original session could not be verified');
+        await this.publication();
+        const checks = this.run.checks.filter(check => check.stage === 'before');
+        if (checks.length !== this.run.task.checks.before.length || checks.some((result, index) =>
+          !result.passed || JSON.stringify(result.check) !== JSON.stringify(this.run.task.checks.before[index]))) {
+          return await this.pending('Before checks do not belong to the retained publication');
+        }
+        this.controller = new AbortController();
+        this.stopIntent = undefined;
+        delete this.run.reason;
+        delete this.run.pendingFrom;
+        // Recovery continues the same version, rather than a state-machine replay of Agent work.
+        this.run.status = 'delivering';
+        this.run.history.push('delivering');
+        await this.persist();
+        return this.snapshot();
+      } catch (error) {
+        return await this.pending(error instanceof Error ? error.message : String(error));
+      }
+    });
+  }
+
   private async resumeOnce(): Promise<TaskRun> {
     if (!TERMINAL.includes(this.run.status)) throw new Error(`Cannot resume ${this.run.status}`);
     try {
@@ -100,6 +146,7 @@ export class LocalTaskRunner {
       delete this.run.delivery;
       delete this.run.reason;
       delete this.run.stopReason;
+      delete this.run.pendingFrom;
       if (this.run.task.timeoutMs) this.run.deadlineAt = Date.now() + this.run.task.timeoutMs;
       this.controller = new AbortController();
       this.stopIntent = undefined;
@@ -155,6 +202,10 @@ export class LocalTaskRunner {
       switch (this.run.status) {
         case 'created': await this.move('initializing'); break;
         case 'initializing': {
+          if (this.run.task.delivery && this.options.delivery?.initialize) {
+            await this.options.delivery.initialize({root: this.run.root, workspace: this.run.workspace},
+              this.run.task.delivery.parameters, this.controller.signal);
+          }
           for (const step of this.run.task.initialization) {
             if (step.kind === 'file') await this.options.files.copyInput(step.source, this.run.workspace, step.destination);
             else {
@@ -204,8 +255,22 @@ export class LocalTaskRunner {
           const publication = await this.publication();
           if (this.run.task.delivery) {
             if (!this.options.delivery) throw new Error('Delivery component is unavailable');
-            const evidence = await this.options.delivery.deliver(publication, this.run.task.delivery.parameters, this.controller.signal);
-            this.run.delivery = jsonValueSchema.parse(evidence);
+            try {
+              const evidence = await this.options.delivery.deliver(publication, this.run.task.delivery.parameters,
+                this.controller.signal, {root: this.run.root,
+                  ...(this.run.delivery === undefined ? {} : {evidence: this.run.delivery}), checkpoint: async evidence => {
+                  this.run.delivery = jsonValueSchema.parse(evidence);
+                  await this.persist();
+                }});
+              this.run.delivery = jsonValueSchema.parse(evidence);
+            } catch (error) {
+              if (!(error instanceof DeliveryFailure)) throw error;
+              this.run.delivery = jsonValueSchema.parse(error.evidence);
+              this.run.reason = error.message;
+              this.run.stopReason = 'failure';
+              await this.move('saving_result');
+              break;
+            }
           }
           await this.move('checking_after'); break;
         }
@@ -291,12 +356,20 @@ export class LocalTaskRunner {
     if (status !== this.run.status && status !== 'stop_requested' && !NEXT[this.run.status]?.includes(status)) {
       throw new Error(`Illegal transition ${this.run.status} -> ${status}`);
     }
+    const previous = this.run.status;
     this.run.status = status;
     this.run.history.push(status);
-    await this.persist();
+    try { await this.persist(); }
+    catch (error) {
+      // A lost transition acknowledgment must keep its source phase recoverable.
+      this.run.status = previous;
+      this.run.history.pop();
+      throw error;
+    }
   }
 
   private async pending(reason: string): Promise<TaskRun> {
+    if (this.run.status !== 'pending_verification') this.run.pendingFrom = this.run.status;
     this.run.reason = reason;
     this.run.status = 'pending_verification';
     this.run.history.push('pending_verification');
