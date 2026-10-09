@@ -31,7 +31,7 @@ async function fixture() {
   const app = Fastify({forceCloseConnections: true});
   const faults = {offline: false, corruptReceipt: false, corruptedReceipts: 0, lostClaim: false, lostClaims: 0,
     lostResult: false, droppedResults: 0, offlineAfterResult: false, duplicateResults: 0, claimsStarted: 0,
-    pauseHeartbeat: false, pausedHeartbeats: 0};
+    pauseHeartbeat: false, pausedHeartbeats: 0, loseStopConfirmation: false, lostStopConfirmations: 0};
   const heartbeatGate = Promise.withResolvers<void>();
   app.addHook('onRequest', async (request, reply) => {
     if (request.url.endsWith('/claim')) faults.claimsStarted++;
@@ -46,6 +46,14 @@ async function fixture() {
   });
   app.addHook('onSend', async (request, reply, payload) => {
     if (reply.statusCode !== 200) return payload;
+    if (request.url.endsWith('/progress') && faults.loseStopConfirmation && typeof payload === 'string' &&
+      JSON.parse(payload).progress?.status === 'stop_confirmed') {
+      faults.loseStopConfirmation = false;
+      faults.lostStopConfirmations++;
+      faults.offline = true;
+      reply.hijack();
+      reply.raw.destroy();
+    }
     if ((request.url.endsWith('/claim') && faults.lostClaim) || (request.url.endsWith('/results') && faults.lostResult)) {
       if (request.url.endsWith('/claim')) { faults.lostClaim = false; faults.lostClaims++; }
       else {
@@ -91,6 +99,221 @@ async function eventually(check: () => Promise<boolean>): Promise<void> {
     await setTimeout(20);
   }
 }
+
+test('一项执行的持久化失败及时拒绝 start，不被另一项人工等待遮蔽', async () => {
+  const f = await fixture();
+  let failures = 0;
+  class FailingStore extends SqliteClientStore {
+    failWrites = true;
+    override saveRun(run: TaskRun): void {
+      if (this.failWrites && run.task.id === 'broken' && ['completion_candidate', 'pending_verification'].includes(run.status)) {
+        failures++;
+        throw new Error('SQLite write failed');
+      }
+      super.saveRun(run);
+    }
+    override pendingResults(): TaskResult[] {
+      if (this.failWrites && failures >= 2) throw new Error('Secondary SQLite scan failed');
+      return super.pendingResults();
+    }
+  }
+  const store = new FailingStore(join(f.root, 'client.sqlite'));
+  const release = Promise.withResolvers<void>();
+  const brokenStarted = Promise.withResolvers<void>();
+  const releaseBroken = Promise.withResolvers<void>();
+  let observedSignal: AbortSignal | undefined;
+  const manager = new ClientManager({server: new HttpTaskServer(f.baseUrl, f.token), store,
+    root: join(f.root, 'runs'), files: new NodeFileExecution(), slots: 2, pollMs: 20,
+    agent: new SimulatedAgent(async ({task, signal}) => {
+      if (task.id === 'broken') {
+        brokenStarted.resolve();
+        await releaseBroken.promise;
+        return {status: 'completion_candidate', output: '触发记录失败'};
+      }
+      observedSignal = signal;
+      await release.promise;
+      return {status: 'waiting_for_input', reason: '等待回答'};
+    })});
+  let outcome: Promise<unknown> | undefined;
+  try {
+    await f.admin('/tasks', {id: 'waiting', agent: {name: 'simulated', prompt: '等待'}, initialization: [],
+      checks: {before: [], after: []}, artifacts: []});
+    outcome = manager.start().then(() => 'resolved', error => error);
+    await eventually(async () => observedSignal !== undefined);
+    await f.admin('/tasks', {id: 'broken', agent: {name: 'simulated', prompt: '失败'}, initialization: [],
+      checks: {before: [], after: []}, artifacts: []});
+    await brokenStarted.promise;
+    f.faults.pauseHeartbeat = true;
+    await eventually(async () => f.faults.pausedHeartbeats > 0);
+    releaseBroken.resolve();
+    await eventually(async () => failures === 2);
+    const failure = await Promise.race([outcome, setTimeout(500, 'still running')]);
+    assert.ok(failure instanceof Error, String(failure));
+    assert.match(failure.message, /SQLite write failed/);
+    assert.equal(manager.snapshot().accepting, false);
+    assert.equal(observedSignal?.aborted, true);
+    assert.equal(store.list().find(record => record.assignment.task.id === 'waiting')?.run?.status, 'pending_verification');
+    store.failWrites = false;
+    const restarted = manager.start();
+    outcome = restarted.then(() => 'resolved', error => error);
+    await eventually(async () => store.list().every(record => record.run?.status === 'pending_verification'));
+    assert.equal(store.pendingResults().length, 0);
+  } finally {
+    store.failWrites = false;
+    release.resolve(); releaseBroken.resolve(); f.releaseHeartbeat();
+    await manager.stop().catch(() => {}); await outcome; store.close(); await f.close();
+  }
+});
+
+test('HTTP 回执之后的 SQLite 读取失败拒绝 start，不能作为断网重试', async () => {
+  const f = await fixture();
+  class FailingStore extends SqliteClientStore {
+    failNextRead = false;
+    override get(runId: string): ReturnType<SqliteClientStore['get']> {
+      if (this.failNextRead) { this.failNextRead = false; throw new Error('SQLite read failed'); }
+      return super.get(runId);
+    }
+  }
+  const store = new FailingStore(join(f.root, 'client.sqlite'));
+  class ReceiptServer extends HttpTaskServer {
+    override async reportResult(...args: Parameters<HttpTaskServer['reportResult']>): ReturnType<HttpTaskServer['reportResult']> {
+      const receipt = await super.reportResult(...args);
+      store.failNextRead = true;
+      return receipt;
+    }
+  }
+  const manager = new ClientManager({server: new ReceiptServer(f.baseUrl, f.token), store,
+    root: join(f.root, 'runs'), files: new NodeFileExecution(), pollMs: 20,
+    agent: new SimulatedAgent(async () => ({status: 'completion_candidate', output: '报告'}))});
+  let outcome: Promise<unknown> | undefined;
+  try {
+    await f.admin('/tasks', {id: 'read-failure', agent: {name: 'simulated', prompt: '报告'}, initialization: [],
+      checks: {before: [], after: []}, artifacts: []});
+    outcome = manager.start().then(() => 'resolved', error => error);
+    await eventually(async () => serverTaskSchema.parse(await f.admin('/tasks/read-failure')).status === 'succeeded');
+    const failure = await Promise.race([outcome, setTimeout(500, 'still running')]);
+    assert.ok(failure instanceof Error, String(failure));
+    assert.match(failure.message, /SQLite read failed/);
+    assert.equal(manager.snapshot().connectionError, undefined);
+    assert.equal(store.pendingResults().length, 1);
+  } finally { await manager.stop().catch(() => {}); await outcome; store.close(); await f.close(); }
+});
+
+test('工作区准备期间立即停止也取消新执行，重新开启不启动 Agent', async () => {
+  const f = await fixture();
+  const store = new SqliteClientStore(join(f.root, 'client.sqlite'));
+  const preparing = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  class GatedFiles extends NodeFileExecution {
+    override async prepare(...args: Parameters<NodeFileExecution['prepare']>): ReturnType<NodeFileExecution['prepare']> {
+      preparing.resolve();
+      await release.promise;
+      return super.prepare(...args);
+    }
+  }
+  let observations = 0;
+  const manager = new ClientManager({server: new HttpTaskServer(f.baseUrl, f.token), store,
+    root: join(f.root, 'runs'), files: new GatedFiles(), pollMs: 20,
+    agent: new SimulatedAgent(async () => { observations++; return {status: 'waiting_for_input', reason: '等待'}; })});
+  let running: Promise<void> | undefined;
+  try {
+    const assignment = serverTaskSchema.parse(await f.admin('/tasks', {id: 'preparing',
+      agent: {name: 'simulated', prompt: '报告'}, initialization: [], checks: {before: [], after: []}, artifacts: []}));
+    running = manager.start();
+    await preparing.promise;
+    const stopping = manager.stop();
+    release.resolve();
+    const records = await stopping;
+    await running;
+    assert.equal(records[0]?.run?.status, 'cancelled');
+    assert.ok(records[0]?.run?.history.includes('stop_confirmed'));
+    assert.equal(observations, 0);
+    running = manager.start();
+    manager.stopAccepting();
+    await running;
+    assert.equal(serverTaskSchema.parse(await f.admin('/tasks/preparing')).status, 'cancelled');
+    assert.equal(store.get(assignment.runId)?.run?.status, 'cancelled');
+    assert.equal(observations, 0);
+  } finally { release.resolve(); await manager.stop(); await running; store.close(); await f.close(); }
+});
+
+test('离线完成后的取消确认停止再补报原结果，旧进度不能代替确认，确认丢失可重启恢复', async () => {
+  const f = await fixture();
+  const database = join(f.root, 'client.sqlite');
+  let store = new SqliteClientStore(database);
+  const release = Promise.withResolvers<void>();
+  const http = new HttpTaskServer(f.baseUrl, f.token);
+  let observations = 0;
+  const agent = new SimulatedAgent(async () => {
+    observations++;
+    await release.promise;
+    return {status: 'completion_candidate', output: '离线报告'};
+  });
+  let manager = new ClientManager({server: http, store, root: join(f.root, 'runs'),
+    files: new NodeFileExecution(), agent, pollMs: 20});
+  let running: Promise<void> | undefined;
+  try {
+    const assignment = serverTaskSchema.parse(await f.admin('/tasks', {id: 'late-cancel',
+      agent: {name: 'simulated', prompt: '报告'}, initialization: [], checks: {before: [], after: []}, artifacts: []}));
+    running = manager.start();
+    await eventually(async () => store.get(assignment.runId)?.run?.status === 'working');
+    f.faults.offline = true;
+    release.resolve();
+    await eventually(async () => store.get(assignment.runId)?.run?.status === 'succeeded');
+    const original = store.pendingResults()[0];
+    assert.ok(original);
+    await manager.stop();
+    await running;
+    f.faults.offline = false;
+    // Ordinary completion can have reported this phase before the cancel request.
+    await http.progress(assignment.runId, {status: 'stop_confirmed'});
+    const cancelled = serverTaskSchema.parse(await f.admin('/tasks/late-cancel/cancel', {}));
+    assert.equal(cancelled.progress, null);
+    await assert.rejects(http.reportResult(original), /Cancellation requires stop confirmation/);
+    store.close();
+    store = new SqliteClientStore(database);
+    manager = new ClientManager({server: http, store, root: join(f.root, 'runs'), files: new NodeFileExecution(),
+      agent: new SimulatedAgent(async () => { throw new Error('已完成的取消不得重跑'); }), pollMs: 20});
+    f.faults.loseStopConfirmation = true;
+    running = manager.start();
+    await eventually(async () => f.faults.lostStopConfirmations === 1 && manager.snapshot().connectionError !== undefined);
+    assert.deepEqual(store.pendingResults(), [original]);
+    const repeated = serverTaskSchema.parse(await f.admin('/tasks/late-cancel/cancel', {}));
+    assert.equal(repeated.status, 'assigned');
+    assert.equal(repeated.progress?.status, 'stop_confirmed');
+    await manager.stop();
+    await running;
+    store.close();
+    store = new SqliteClientStore(database);
+    manager = new ClientManager({server: http, store, root: join(f.root, 'runs'), files: new NodeFileExecution(),
+      agent: new SimulatedAgent(async () => { throw new Error('补报不得重跑'); }), pollMs: 20});
+    f.faults.offline = false;
+    f.faults.lostResult = true;
+    f.faults.offlineAfterResult = true;
+    running = manager.start();
+    await eventually(async () => f.faults.droppedResults === 1 && manager.snapshot().connectionError !== undefined);
+    assert.deepEqual(store.pendingResults(), [original]);
+    assert.equal(serverTaskSchema.parse(await f.admin('/tasks/late-cancel')).status, 'succeeded');
+    await manager.stop();
+    await running;
+    store.close();
+    store = new SqliteClientStore(database);
+    manager = new ClientManager({server: http, store, root: join(f.root, 'runs'), files: new NodeFileExecution(),
+      agent: new SimulatedAgent(async () => { throw new Error('重复确认不得重跑'); }), pollMs: 20});
+    f.faults.offline = false;
+    running = manager.start();
+    manager.stopAccepting();
+    await eventually(async () => store.pendingResults().length === 0);
+    await running;
+    const completed = serverTaskSchema.parse(await f.admin('/tasks/late-cancel'));
+    assert.equal(completed.status, 'succeeded');
+    assert.deepEqual(completed.result, original);
+    assert.deepEqual(store.get(assignment.runId)?.run?.results, [original]);
+    assert.equal(store.pendingResults().length, 0);
+    assert.equal(observations, 1);
+    assert.ok(f.faults.duplicateResults > 0);
+  } finally { release.resolve(); await manager.stop(); await running; store.close(); await f.close(); }
+});
 
 test('用户开启客户端后经 HTTP 领取报告任务，本地 SQLite 保存结果后上报', async () => {
   const f = await fixture();

@@ -63,6 +63,7 @@ export class ClientManager {
     this.accepting = true;
     this.stopping = false;
     this.failure = undefined;
+    this.runners.clear();
     this.transport = new AbortController();
     this.wake = new AbortController();
     this.loop = this.runLoop().finally(() => { this.loop = undefined; this.accepting = false; });
@@ -122,11 +123,7 @@ export class ClientManager {
     this.accepting = false;
     this.stopping = true;
     this.transport.abort();
-    for (const runner of this.runners.values()) {
-      if (FINISHED.has(runner.snapshot().status) || runner.snapshot().status === 'pending_verification') continue;
-      await runner.cancel();
-      if (!FINISHED.has(runner.snapshot().status) && runner.snapshot().status !== 'pending_verification') await runner.execute();
-    }
+    for (const runner of this.runners.values()) await this.stopRunner(runner);
     await this.loop;
     return this.options.store.list();
   }
@@ -159,7 +156,18 @@ export class ClientManager {
           finally { if (this.wake.signal.aborted) this.wake = new AbortController(); }
         }
       }
-    } finally { await Promise.all(this.active.values()); }
+    } catch (error) {
+      this.fail(error);
+      throw this.failure;
+    } finally {
+      if (this.failure) {
+        // Preserve the first storage failure even if stopping another execution
+        // cannot persist. Cancellation aborts its Agent/command signal; unknown
+        // stops remain pending rather than being inferred from loop shutdown.
+        await Promise.allSettled([...this.runners.values()].map(runner => this.stopRunner(runner)));
+      }
+      await Promise.all(this.active.values());
+    }
     if (this.failure) throw this.failure;
   }
 
@@ -183,19 +191,34 @@ export class ClientManager {
       }
     }
     for (const result of this.options.store.pendingResults()) {
-      const receipt = await this.network(`result:${result.runId}`, async () => {
-        const receipt = await this.options.server.reportResult(result, this.transport.signal);
-        if (receipt.task.runId !== result.runId || receipt.task.task.id !== result.taskId ||
-          receipt.task.clientId !== this.options.store.get(result.runId)?.assignment.clientId ||
-          receipt.task.status !== result.status || !isDeepStrictEqual(receipt.task.result, result)) {
-          throw new Error('Result receipt identity or content mismatch');
+      const key = `result:${result.runId}`;
+      const record = this.options.store.get(result.runId);
+      if (record?.assignment.cancellationRequested && (result.status === 'succeeded' || result.status === 'failed')) {
+        const run = record.run;
+        if (!run || run.version !== result.version || run.status !== result.status ||
+          run.history.lastIndexOf('stop_confirmed') <= run.history.lastIndexOf('working')) {
+          this.connectionErrors.set(key, 'Cancellation requires retained stop confirmation for this version');
+          continue;
         }
-        return receipt;
-      });
+        await this.network(`stop:${result.runId}`, () => this.options.server.progress(result.runId,
+          {status: 'stop_confirmed'}, this.transport.signal));
+        // A lost result receipt may mean the server is already terminal and
+        // rejects progress. Replaying the immutable result retrieves its receipt;
+        // a still-assigned server continues to require the stop confirmation.
+      }
+      const receipt = await this.network(key, () => this.options.server.reportResult(result, this.transport.signal));
       if (receipt) {
+        const assignment = this.options.store.get(result.runId)?.assignment;
+        if (receipt.task.runId !== result.runId || receipt.task.task.id !== result.taskId ||
+          receipt.task.clientId !== assignment?.clientId ||
+          receipt.task.status !== result.status || !isDeepStrictEqual(receipt.task.result, result)) {
+          this.connectionErrors.set(key, 'Result receipt identity or content mismatch');
+          continue;
+        }
         this.options.store.saveAssignment(receipt.task);
         this.options.store.acknowledge(result);
         this.connectionErrors.delete(`progress:${result.runId}`);
+        this.connectionErrors.delete(`stop:${result.runId}`);
       }
     }
     for (const record of this.options.store.list()) {
@@ -212,6 +235,11 @@ export class ClientManager {
     if (known || this.stopping) return;
     const runner = await LocalTaskRunner.create(assignment.task, {...this.options, runId: assignment.runId, files: this.files});
     this.runners.set(assignment.runId, runner);
+    if (this.stopping) {
+      await runner.cancel();
+      await runner.execute();
+      return;
+    }
     if (assignment.cancellationRequested) await runner.cancel();
     this.execute(runner);
   }
@@ -229,11 +257,24 @@ export class ClientManager {
         try { await setTimeout(Math.max(1, Math.min(this.pollMs, remaining)), undefined, {signal: this.transport.signal}); }
         catch (error) { if (!this.stopping) throw error; }
       }
-    })().catch(error => { this.failure = error; }).finally(() => {
+    })().catch(error => { this.fail(error); }).finally(() => {
       this.active.delete(id);
       this.wake.abort();
     });
     this.active.set(id, operation);
+  }
+
+  private fail(error: unknown): void {
+    this.failure ??= error;
+    this.accepting = false;
+    this.stopping = true;
+    this.transport.abort();
+  }
+
+  private async stopRunner(runner: LocalTaskRunner): Promise<void> {
+    if (FINISHED.has(runner.snapshot().status) || runner.snapshot().status === 'pending_verification') return;
+    await runner.cancel();
+    if (!FINISHED.has(runner.snapshot().status) && runner.snapshot().status !== 'pending_verification') await runner.execute();
   }
 
   private async network<T>(key: string, operation: () => Promise<T>): Promise<T | undefined> {
