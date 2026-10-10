@@ -13,5 +13,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
-  "references": [{"path": "../contracts"}, {"path": "../client"}]
+  "references": [{"path": "../contracts"}, {"path": "../local-runner"}]
 }

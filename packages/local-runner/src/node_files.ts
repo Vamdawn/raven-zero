@@ -192,6 +192,24 @@ export class NodeFileExecution implements FileExecution {
       JSON.stringify(await inventory(publication.directory)) === JSON.stringify(publication.entries);
   }
 
+  async recoverPublication(request: PublicationRequest): Promise<Publication | null> {
+    const destination = join(request.root, 'delivery', `v${request.version}`);
+    let input: unknown;
+    try { input = JSON.parse(await readFile(join(destination, 'manifest.json'), 'utf8')); }
+    catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      const entries = await readdir(join(request.root, 'delivery'));
+      if (entries.some(name => name === `v${request.version}` ||
+        (name.startsWith(`v${request.version}.`) && name.endsWith('.partial')))) throw new Error('Interrupted publication is incomplete');
+      return null;
+    }
+    const publication = publicationSchema.parse(input);
+    if (publication.runId !== request.runId || publication.sessionId !== request.sessionId ||
+      publication.version !== request.version || publication.directory !== join(destination, 'content') ||
+      !await this.verify(publication)) throw new Error('Retained publication identity or content mismatch');
+    return publication;
+  }
+
   async artifact(publication: Publication, path: string): Promise<FileArtifact> {
     if (!await this.verify(publication)) throw new Error('Publication changed');
     const entry = publication.entries.find(entry => entry.path === path && entry.kind === 'file');

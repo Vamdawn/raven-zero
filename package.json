@@ -13,7 +13,7 @@
     "test:tools": "node --test --test-timeout=60000 scripts/test/*.test.mjs",
     "validation:begin": "node scripts/validation_resources.mjs begin",
     "validation:check": "node scripts/validation_resources.mjs check",
-    "build": "pnpm --filter @raven-zero/codex-adapter build:native && tsc -b",
+    "build": "pnpm --filter @raven-zero/codex-adapter build:native && tsc -b --force",
     "test": "pnpm build && node --test --test-concurrency=1 --test-timeout=60000 packages/*/dist/test/*.test.js"
   },
   "devDependencies": {"typescript": "7.0.2", "@types/node": "24.19.1"}

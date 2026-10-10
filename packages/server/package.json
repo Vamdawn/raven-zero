@@ -6,6 +6,7 @@
   "engines": {"node": "24.x"},
   "exports": {".": {"types": "./dist/src/index.d.ts", "default": "./dist/src/index.js"}},
   "scripts": {"start": "node dist/src/cli.js start", "migrate": "node dist/src/cli.js migrate"},
+  "devDependencies": {"@raven-zero/client": "workspace:*", "@raven-zero/local-runner": "workspace:*"},
   "dependencies": {
     "@raven-zero/contracts": "workspace:*",
     "fastify": "5.12.5",

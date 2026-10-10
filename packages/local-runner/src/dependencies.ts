@@ -35,6 +35,10 @@ export interface FileExecution {
     environment?: Readonly<Record<string, string | undefined>>): Promise<CommandResult>;
   fileExists(workspace: string, path: string): Promise<boolean>;
   publish(request: PublicationRequest): Promise<Publication>;
+  /** Finds an exclusively published version after a lost acknowledgment.
+   * Incomplete staging or invalid content must fail, never become a publication.
+   */
+  recoverPublication?(request: PublicationRequest): Promise<Publication | null>;
   verify(publication: Publication): Promise<boolean>;
   artifact(publication: Publication, path: string): Promise<FileArtifact>;
   saveRun(run: TaskRun): Promise<void>;
@@ -65,6 +69,8 @@ export class DeliveryFailure extends Error {
 
 export interface RunnerOptions {
   readonly root: string;
+  /** Uses the server's assigned identity when executing an HTTP task. */
+  readonly runId?: string;
   readonly agent: AgentAdapter;
   readonly files: FileExecution;
   readonly delivery?: DeliveryComponent;

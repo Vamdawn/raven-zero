@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {execFileSync, spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, realpathSync, existsSync, statSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, realpathSync, existsSync, statSync, symlinkSync, utimesSync} from 'node:fs';
 import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 
@@ -25,6 +25,52 @@ function run(root, script, args = [], env = environment) {
   return spawnSync(process.execPath, [join(repository, 'scripts', script), ...args],
     {cwd: root, env, encoding: 'utf8'});
 }
+
+test('完整测试重新编译旧产物，即使源码时间戳没有推进也执行新断言', () => {
+  const root = fixture();
+  try {
+    cpSync(join(repository, 'package.json'), join(root, 'package.json'));
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\nverifyDepsBeforeRun: false\n');
+    symlinkSync(join(repository, 'node_modules'), join(root, 'node_modules'), 'dir');
+    const native = join(root, 'packages/codex-adapter');
+    const app = join(root, 'packages/app');
+    mkdirSync(native, {recursive: true});
+    mkdirSync(join(app, 'src'), {recursive: true});
+    mkdirSync(join(app, 'test'));
+    // This boundary verifies TypeScript compilation; native compilation has its
+    // own tests, so the fixture supplies only its public package command.
+    writeFileSync(join(native, 'package.json'), JSON.stringify({name: '@raven-zero/codex-adapter',
+      scripts: {'build:native': 'node -e ""'}}));
+    writeFileSync(join(app, 'package.json'), JSON.stringify({name: 'compilation-fixture', type: 'module'}));
+    writeFileSync(join(root, 'tsconfig.json'), JSON.stringify({files: [], references: [{path: 'packages/app'}]}));
+    writeFileSync(join(app, 'tsconfig.json'), JSON.stringify({compilerOptions: {composite: true,
+      target: 'ES2023', module: 'NodeNext', rootDir: '.', outDir: 'dist', types: ['node'], skipLibCheck: true}}));
+    const source = join(app, 'src/value.ts');
+    const testSource = join(app, 'test/value.test.ts');
+    const writeSources = value => {
+      writeFileSync(source, `export const value = '${value}';\n`);
+      writeFileSync(testSource, `import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {value} from '../src/value.js';
+test('compiled assertion', () => assert.equal(value, '${value}'));
+`);
+    };
+    writeSources('old');
+    const sourceTime = statSync(source).mtime;
+    const testTime = statSync(testSource).mtime;
+    execFileSync(join(repository, 'node_modules/.bin/tsc'), ['-b'], {cwd: root, env: environment});
+    writeSources('new');
+    // Reproduce an incremental cache claiming that old emitted tests are fresh.
+    utimesSync(source, sourceTime, sourceTime);
+    utimesSync(testSource, testTime, testTime);
+    const tested = spawnSync('pnpm', ['test'], {cwd: root, env: environment, encoding: 'utf8'});
+    assert.equal(tested.status, 0, tested.stdout + tested.stderr);
+    const compiled = pathToFileURL(join(app, 'dist/src/value.js')).href;
+    const value = execFileSync(process.execPath, ['--input-type=module', '-e',
+      `import {value} from ${JSON.stringify(compiled)}; process.stdout.write(value);`], {encoding: 'utf8'});
+    assert.equal(value, 'new', '完整检查必须执行当前源码生成的产物');
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
 
 test('hook installation preserves the previous hook, is repeatable, and failed checks block commits', () => {
   const root = fixture();

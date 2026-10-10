@@ -124,9 +124,12 @@ export class MysqlStore implements ServerStore {
       if (row.status !== 'queued' && row.status !== 'assigned') return mapTask(row);
       const status = row.status === 'queued' ? 'cancelled' : 'assigned';
       const now = utcTime();
-      await db.updateTable('raven_task').set({status, is_cancellation_requested: 1, update_time: now})
+      // Only confirmation received after the first cancel request can settle it.
+      const progress = row.is_cancellation_requested ? row.progress : null;
+      await db.updateTable('raven_task').set({status, is_cancellation_requested: 1,
+        ...(row.is_cancellation_requested ? {} : {progress: null}), update_time: now})
         .where('id', '=', taskId).where('status', '=', row.status).execute();
-      return mapTask({...row, status, is_cancellation_requested: 1, update_time: now});
+      return mapTask({...row, status, is_cancellation_requested: 1, progress, update_time: now});
     });
   }
 
@@ -214,7 +217,8 @@ export class MysqlStore implements ServerStore {
       }
       if (row.status !== 'assigned') throw new ServerError('conflict', 'Run already completed');
       const task = mapTask(row).task;
-      if (row.is_cancellation_requested && result.status !== 'cancelled' && result.status !== 'expired') {
+      if (row.is_cancellation_requested && result.status !== 'cancelled' && result.status !== 'expired' &&
+        mapTask(row).progress?.status !== 'stop_confirmed') {
         throw new ServerError('conflict', 'Cancellation requires stop confirmation');
       }
       if (result.status === 'succeeded' && task.artifacts.length > 0) {
